@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>微光论坛 - 终极进化版</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f6fa; --card:#fff; --text:#1c1e26; --sub:#6b7280; --muted:#9096a6;
+  --line:#e8eaf0; --primary:#4f6ef7; --danger:#ef4444; --ok:#10b981;
+  --input-bg:#f9fafc; --hover:#f8f9fd;
+}
+body.dark{
+  --bg:#0f1117; --card:#181b24; --text:#e6e8ef; --sub:#9aa0b0; --muted:#6b7280;
+  --line:#262a36; --primary:#6b8aff; --danger:#f87171; --ok:#34d399;
+  --input-bg:#1f2330; --hover:#1c2029;
+}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.6;transition:background .25s,color .25s;padding-bottom:env(safe-area-inset-bottom)}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;color:inherit}
+.bar{position:sticky;top:0;z-index:10;background:var(--card);border-bottom:1px solid var(--line);padding:0 12px;height:52px;display:flex;align-items:center;gap:6px}
+.logo{font-weight:800;font-size:.95rem;white-space:nowrap}
+.btn{height:32px;padding:0 .8rem;border-radius:99px;font-size:.8rem;font-weight:600;background:var(--primary);color:#fff;white-space:nowrap;transition:opacity .2s}
+.btn:active{opacity:.8}
+.btn.ghost{background:var(--card);color:var(--sub);border:1px solid var(--line);position:relative}
+.av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#ec4899);color:#fff;display:grid;place-items:center;font-size:.7rem;font-weight:700}
+.userarea{margin-left:auto;display:flex;align-items:center;gap:6px}
+.uname{font-size:.78rem;font-weight:700;cursor:pointer}
+.link{font-size:.74rem;color:var(--muted)}
+.dot{position:absolute;top:-3px;right:-3px;background:var(--danger);color:#fff;font-size:.6rem;font-weight:700;min-width:15px;height:15px;border-radius:99px;display:none;align-items:center;justify-content:center;padding:0 3px;line-height:1}
+.dot.on{display:inline-flex}
+.wrap{max-width:720px;margin:0 auto;padding:14px}
+
+.searchbar{display:flex;gap:8px;margin-bottom:12px}
+.searchbar input{flex:1;height:38px;border:1px solid var(--line);background:var(--card);border-radius:99px;padding:0 14px;font-size:.84rem;outline:none;min-width:0}
+.searchbar input:focus{border-color:var(--primary)}
+.searchbar .btn{height:38px}
+
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:12px;white-space:nowrap}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0;padding:.4rem .85rem;border-radius:99px;font-size:.8rem;font-weight:600;color:var(--sub);background:var(--card);border:1px solid var(--line)}
+.tab.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.tab.horror{color:#b91c1c;border-color:#fca5a5}
+.tab.horror.on{background:#b91c1c;color:#fff;border-color:#b91c1c}
+
+.post{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .3s,border-color .3s;position:relative}
+.post.pinned{border-left:4px solid var(--primary);background:var(--hover)}
+.post h3{font-size:.95rem;font-weight:700;margin-bottom:4px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.badge-pin{background:var(--primary);color:#fff;font-size:.6rem;padding:1px 5px;border-radius:4px;font-weight:600}
+.post p{color:var(--sub);font-size:.81rem;margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.post-imgs{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.post-img{width:80px;height:80px;border-radius:8px;object-fit:cover;cursor:pointer;border:1px solid var(--line)}
+.meta{display:flex;align-items:center;gap:9px;font-size:.74rem;color:var(--muted);flex-wrap:wrap}
+.mav{width:22px;height:22px;border-radius:50%;color:#fff;display:inline-grid;place-items:center;font-size:.65rem;font-weight:700;vertical-align:middle;margin-right:4px;flex-shrink:0}
+.pname{color:var(--sub);font-weight:550;cursor:pointer}
+.pname:hover{color:var(--primary);text-decoration:underline}
+.like{display:inline-flex;align-items:center;gap:3px;font-size:.74rem;font-weight:600;color:var(--muted);padding:.1rem .4rem;border-radius:6px}
+.like.on{color:#ec4899}
+.like svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2}
+.like.on svg{fill:#ec4899;stroke:#ec4899}
+
+.post-menu{position:absolute;top:10px;right:10px;display:flex;gap:4px;opacity:0;transition:opacity .2s}
+.post:hover .post-menu{opacity:1}
+.post-menu button{width:26px;height:26px;border-radius:6px;background:var(--input-bg);color:var(--sub);font-size:.75rem;display:grid;place-items:center}
+
+.detail{display:none;background:var(--card);border:1px solid var(--primary);border-radius:12px;padding:16px;margin-bottom:14px}
+.detail.on{display:block}
+.detail h2{font-size:1.12rem;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.detail .dmeta{font-size:.75rem;color:var(--muted);margin-bottom:8px}
+.fbar{margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line);font-size:.78rem}
+.fbar button{color:var(--primary);font-weight:700}
+.fbar .ok{color:var(--ok);font-weight:700}
+.detail p{font-size:.87rem;color:var(--text);line-height:1.8;margin-bottom:10px}
+.dact{display:flex;align-items:center;gap:14px;font-size:.77rem;color:var(--muted);padding-top:10px;border-top:1px solid var(--line);margin-top:8px}
+.cmts{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)}
+.cmt{display:flex;gap:8px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:.81rem;position:relative}
+.cmt:last-child{border:none}
+.cmt .mav{width:24px;height:24px;font-size:.7rem}
+.cmt b{font-size:.77rem;cursor:pointer}
+.cmt b:hover{color:var(--primary);text-decoration:underline}
+.cmt .op-badge{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;font-size:.6rem;padding:0 4px;border-radius:4px;margin-left:4px;font-weight:700}
+.cmt .ai-badge{background:#e0e7ff;color:#4f46e5;font-size:.6rem;padding:0 4px;border-radius:4px;margin-left:4px;font-weight:700}
+.cmt .local-badge{background:var(--input-bg);color:var(--muted);font-size:.6rem;padding:0 4px;border-radius:4px;margin-left:4px;font-weight:700}
+.cmt .hot-badge{background:#fef08a;color:#b45309;font-size:.6rem;padding:0 4px;border-radius:4px;margin-left:4px;font-weight:800;border:1px solid #fde047}
+.cmt small{color:var(--muted);font-size:.67rem;margin-left:6px}
+.cmt .tx{color:var(--text);line-height:1.65;margin-top:3px;word-break:break-word}
+.cmt-actions{display:flex;gap:10px;margin-top:4px;align-items:center}
+.cmt-like{display:inline-flex;align-items:center;gap:3px;font-size:.68rem;color:var(--muted);cursor:pointer;padding:2px 6px;border-radius:4px;transition:background .2s}
+.cmt-like:hover{background:var(--input-bg)}
+.cmt-like.on{color:#ec4899}
+.cmt-like svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2}
+.cmt-like.on svg{fill:#ec4899;stroke:#ec4899}
+
+.mention{color:var(--primary);font-weight:700;cursor:pointer;background:rgba(79,110,247,.08);padding:0 3px;border-radius:4px}
+.mention:hover{text-decoration:underline;background:rgba(79,110,247,.15)}
+.cadd{font-size:.68rem;color:var(--primary);font-weight:700;margin-left:6px;cursor:pointer}
+.creply{font-size:.68rem;color:var(--muted);font-weight:700;margin-left:6px;cursor:pointer}
+.creply:hover{color:var(--primary)}
+
+.toolbar{display:flex;gap:6px;padding-bottom:6px;flex-wrap:wrap}
+.toolbar button{width:32px;height:32px;border-radius:8px;background:var(--input-bg);font-size:1.1rem;display:grid;place-items:center}
+.toolbar button:hover{background:var(--line)}
+.cform{display:flex;gap:8px;margin-top:6px;align-items:center}
+.cform input{flex:1;height:34px;border:1px solid var(--line);background:var(--input-bg);border-radius:99px;padding:0 12px;font-size:.81rem;outline:none;min-width:0}
+.cform input:focus{border-color:var(--primary);background:var(--card)}
+.cform .btn{height:34px;font-size:.79rem}
+.close{display:inline-block;margin-top:10px;font-size:.79rem;color:var(--primary);font-weight:600;cursor:pointer}
+.empty{text-align:center;padding:30px;background:var(--card);border:1px dashed var(--line);border-radius:12px;color:var(--sub);font-size:.83rem}
+
+.auth,.ai-setup,.composer,.img-preview{position:fixed;inset:0;z-index:50;background:rgba(15,18,30,.5);display:none;align-items:center;justify-content:center;padding:16px}
+.auth.on,.ai-setup.on,.composer.on,.img-preview.on{display:flex}
+.authbox{background:var(--card);border-radius:14px;padding:22px;width:min(360px,100%);display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 60px -20px rgba(10,14,30,.4)}
+.authbox h3{font-size:1rem;font-weight:800}
+.authbox input,.authbox textarea,.authbox select{height:38px;border:1px solid var(--line);background:var(--input-bg);border-radius:10px;padding:0 12px;font-size:.85rem;outline:none;color:var(--text)}
+.authbox textarea{height:100px;padding:10px 12px;resize:vertical;line-height:1.5}
+.authbox input:focus,.authbox textarea:focus,.authbox select:focus{border-color:var(--primary);background:var(--card)}
+.authbox .btn{height:38px;width:100%}
+.authbox .cancel{font-size:.77rem;color:var(--muted);text-align:center;cursor:pointer}
+.img-preview .preview-wrap{position:relative;max-width:90vw;max-height:90vh;}
+.img-preview img{max-width:100%;max-height:90vh;border-radius:8px;}
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#1c1e26;color:#fff;font-size:.79rem;padding:.5rem 1rem;border-radius:99px;opacity:0;transition:all .3s;pointer-events:none;z-index:999;max-width:90vw;text-align:center}
+.toast.on{opacity:1;bottom:38px}
+.toast.err{background:var(--danger)}
+
+.ucard-overlay{position:fixed;inset:0;z-index:100;background:rgba(15,18,30,.5);display:none;align-items:center;justify-content:center;padding:16px}
+.ucard-overlay.on{display:flex}
+.ucard{background:var(--card);border-radius:16px;width:min(360px,92vw);max-height:78vh;display:flex;flex-direction:column;position:relative}
+.ucard-close{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;color:var(--muted);font-size:.85rem;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;z-index:2}
+.ucard-head{padding:18px 16px 10px;text-align:center}
+.ucard-avatar{width:56px;height:56px;border-radius:50%;color:#fff;display:inline-grid;place-items:center;font-size:1.6rem;font-weight:800;margin-bottom:8px}
+.ucard-name{font-size:1rem;font-weight:800}
+.ucard-bio{font-size:.78rem;color:var(--muted);margin-top:4px}
+.ucard-stats{display:flex;gap:20px;justify-content:center;padding:10px 16px 12px;font-size:.76rem;color:var(--sub);border-bottom:1px solid var(--line)}
+.ucard-stats b{font-weight:800;color:var(--text);font-size:.9rem;margin-right:3px}
+.ucard-actions{display:flex;gap:8px;padding:12px 16px;justify-content:center}
+.ucard-actions .btn{flex:1;height:34px;font-size:.82rem}
+.ucard-posts-head{font-size:.72rem;font-weight:700;color:var(--muted);padding:4px 16px 8px;border-top:1px solid var(--line)}
+.ucard-posts{flex:1;overflow-y:auto;padding:0 10px 10px;min-height:80px}
+.ucard-post{padding:9px 8px;border-radius:8px;cursor:pointer;border-bottom:1px dashed var(--line)}
+.ucard-post:hover{background:var(--hover)}
+.ucard-post h4{font-size:.85rem;font-weight:650;line-height:1.5;margin-bottom:3px}
+.ucard-post .m{font-size:.7rem;color:var(--muted)}
+
+.msg,.notice-panel,.fav-panel{position:fixed;inset:0;z-index:70;background:var(--bg);display:none;flex-direction:column}
+.msg.on,.notice-panel.on,.fav-panel.on{display:flex}
+.panel-head{height:52px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 8px;gap:6px;flex-shrink:0}
+.panel-head .t{flex:1;text-align:center;font-weight:700;font-size:.9rem}
+.panel-head button{min-width:34px;height:34px;border-radius:50%;color:var(--primary);font-weight:600}
+.panel-body{flex:1;overflow-y:auto;padding:12px}
+.mtabs{display:flex;background:var(--card);border-bottom:1px solid var(--line);flex-shrink:0}
+.mtab{flex:1;height:40px;font-size:.83rem;font-weight:700;color:var(--muted);border-bottom:2px solid transparent}
+.mtab.on{color:var(--primary);border-bottom-color:var(--primary)}
+.friend{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:12px;padding:10px 12px;margin-bottom:8px;border:1px solid transparent}
+.friend .info{flex:1;min-width:0}
+.friend .n{font-size:.87rem;font-weight:700;cursor:pointer}
+.friend .lm{font-size:.73rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.badge{background:var(--danger);color:#fff;font-size:.65rem;font-weight:700;border-radius:99px;padding:0 .35rem;min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center}
+.chat{padding:4px 0;display:flex;flex-direction:column;gap:8px}
+.row{display:flex}
+.row.me{justify-content:flex-end}
+.row.them{justify-content:flex-start}
+.bubble{max-width:78%;padding:8px 12px;border-radius:14px;font-size:.85rem;line-height:1.5;word-break:break-word}
+.me .bubble{background:var(--primary);color:#fff;border-bottom-right-radius:4px}
+.them .bubble{background:var(--card);border:1px solid var(--line);border-bottom-left-radius:4px}
+.chat-input{display:flex;gap:8px;padding:10px;background:var(--card);border-top:1px solid var(--line);flex-shrink:0}
+.chat-input input{flex:1;height:36px;border:1px solid var(--line);background:var(--input-bg);border-radius:99px;padding:0 14px;font-size:.84rem;outline:none;min-width:0}
+.chat-input .btn{height:36px}
+.add-bar{display:flex;gap:6px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line);flex-shrink:0}
+.add-bar input{flex:1;height:34px;border:1px solid var(--line);background:var(--input-bg);border-radius:99px;padding:0 12px;font-size:.81rem;outline:none;min-width:0}
+.add-bar .btn{height:34px;font-size:.77rem}
+.msg-empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:.84rem}
+.notice-item{background:var(--card);border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid var(--line);cursor:pointer;display:flex;gap:10px;align-items:flex-start}
+.notice-item.unread{border-left:3px solid var(--primary);}
+.notice-item .ntext{flex:1;font-size:.83rem;line-height:1.5}
+.notice-item .ntime{font-size:.7rem;color:var(--muted);margin-top:4px}
+.fav-item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;position:relative}
+.fav-item:hover{border-color:var(--primary)}
+.fav-item h4{font-size:.88rem;font-weight:700;margin-bottom:4px;padding-right:30px}
+.fav-item .m{font-size:.72rem;color:var(--muted)}
+.fav-item .unfav{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:6px;background:var(--input-bg);color:#f59e0b;font-size:.8rem;display:grid;place-items:center}
+
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:40;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.bottom-nav .bn-inner{display:flex;height:54px}
+.bottom-nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:.65rem;color:var(--muted);font-weight:600;position:relative}
+.bottom-nav button.on{color:var(--primary)}
+.bottom-nav button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2}
+.bottom-nav .bn-dot{position:absolute;top:6px;right:calc(50% - 16px);background:var(--danger);color:#fff;font-size:.55rem;font-weight:700;min-width:14px;height:14px;border-radius:99px;display:none;align-items:center;justify-content:center;padding:0 3px}
+.bottom-nav .bn-dot.on{display:inline-flex}
+@media(max-width:640px){
+  .bottom-nav{display:block}
+  .wrap{padding-bottom:70px}
+  .post-menu{opacity:1}
+  .bar .btn.ghost#msgBtn{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="logo">微光论坛</span>
+  <button class="btn" id="newPost">发帖</button>
+  <button class="btn ghost" id="msgBtn">消息<span class="dot" id="unreadDot">0</span></button>
+  <button class="btn ghost" id="noticeBtn" style="padding:0 10px">🔔<span class="dot" id="noticeDot">0</span></button>
+  <button class="btn ghost" id="themeBtn" style="padding:0 10px">🌙</button>
+  <button class="btn ghost" id="aiSetupBtn" style="padding:0 10px">⚙️</button>
+  <button class="btn ghost" id="resetBtn" style="padding:0 10px">🔄</button>
+  <div class="userarea" id="userArea"></div>
+</div>
+
+<div class="wrap">
+  <div class="searchbar">
+    <input id="searchInput" placeholder="搜索帖子标题或内容…">
+    <button class="btn" id="searchBtn">搜索</button>
+  </div>
+
+  <!-- 新增板块 -->
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-f="all">全部</button>
+    <button class="tab" data-f="tech">技术</button>
+    <button class="tab" data-f="life">生活</button>
+    <button class="tab" data-f="chat">闲聊</button>
+    <button class="tab" data-f="game">游戏</button>
+    <button class="tab" data-f="emotion">情感</button>
+    <button class="tab horror" data-f="horror">灵异怪谈</button>
+  </div>
+
+  <div class="detail" id="detail">
+    <h2 id="dTitle"></h2>
+    <div class="dmeta" id="dMeta"></div>
+    <div class="fbar" id="dFriendBar"></div>
+    <div id="dBody"></div>
+    <div class="dact">
+      <button class="like" id="dLike"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 000-7.8z"/></svg><span id="dLikeCount">0</span></button>
+      <span>👁 <span id="dViews">0</span></span>
+      <span>💬 <span id="dCmtCount">0</span></span>
+    </div>
+    <div class="cmts" id="dCmts"></div>
+    <div class="toolbar" id="cToolbar">
+      <button onclick="addEmoji('😀')">😀</button>
+      <button onclick="addEmoji('😂')">😂</button>
+      <button onclick="addEmoji('👍')">👍</button>
+      <button onclick="addEmoji('👻')">👻</button>
+      <button onclick="addEmoji('**加粗**')" style="font-size:.8rem;font-weight:800">B</button>
+    </div>
+    <div class="cform"><input id="cInput" placeholder="写评论…"><button class="btn" id="cSend">发送</button></div>
+    <span class="close" id="dClose">收起详情 ↑</span>
+  </div>
+
+  <div id="sortBar" style="display:flex;gap:8px;margin-bottom:10px;">
+    <button id="sortNew" class="btn ghost" style="height:28px;font-size:.75rem">最新</button>
+    <button id="sortHot" class="btn ghost" style="height:28px;font-size:.75rem">热门</button>
+  </div>
+
+  <div id="list"></div>
+  <div class="empty" id="empty" style="display:none">这个板块目前很安静……</div>
+  <div id="loadingMore" style="text-align:center;padding:10px;color:var(--muted);font-size:.8rem;display:none">加载中...</div>
+</div>
+
+<div class="bottom-nav">
+  <div class="bn-inner">
+    <button class="on" data-nav="home"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>首页</button>
+    <button data-nav="post"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>发帖</button>
+    <button data-nav="msg"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>消息<span class="bn-dot" id="bnDot">0</span></button>
+    <button data-nav="me"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>我的</button>
+  </div>
+</div>
+
+<div class="auth" id="auth">
+  <div class="authbox">
+    <h3>登录</h3>
+    <input id="authName" placeholder="用户名" maxlength="12">
+    <input id="authPass" type="password" placeholder="密码">
+    <button class="btn" id="authGo">登录</button>
+    <div class="cancel" id="authCancel">取消</div>
+  </div>
+</div>
+
+<div class="composer" id="composer">
+  <div class="authbox">
+    <h3 id="composerTitle">发布新帖</h3>
+    <input id="compTitle" placeholder="帖子标题" maxlength="60">
+    <select id="compCat">
+      <option value="tech">技术</option>
+      <option value="life">生活</option>
+      <option value="chat">闲聊</option>
+      <option value="game">游戏</option>
+      <option value="emotion">情感</option>
+      <option value="horror">灵异怪谈</option>
+    </select>
+    <textarea id="compBody" placeholder="说点什么… (支持 **加粗** 和换行)"></textarea>
+    <input type="file" id="compImg" accept="image/*" style="border:none;padding:0;height:auto;font-size:.8rem">
+    <div id="compImgPreview" class="post-imgs"></div>
+    <button class="btn" id="compGo">发布</button>
+    <div class="cancel" id="compCancel">取消</div>
+  </div>
+</div>
+
+<div class="ai-setup" id="aiSetup">
+  <div class="authbox">
+    <h3>接入真实 AI</h3>
+    <div style="font-size:.72rem;color:var(--muted);line-height:1.5;margin-bottom:4px">
+      ⚠️ 手机本地打开可能被 CORS 拦截。<br>
+      建议用电脑浏览器，或部署到 https 服务器。
+    </div>
+    <input id="aiKey" placeholder="sk-xxx (DeepSeek)">
+    <input id="aiUrl" placeholder="接口地址" value="https://api.deepseek.com/chat/completions">
+    <input id="aiModel" placeholder="模型" value="deepseek-chat">
+    <button class="btn" id="testAiBtn" style="background:var(--ok);margin-bottom:4px">测试连接</button>
+    <button class="btn" id="aiSave">保存配置</button>
+    <div class="cancel" id="aiCancel">取消</div>
+  </div>
+</div>
+
+<div class="img-preview" id="imgPreview">
+  <div class="preview-wrap"><img id="previewImg" src=""></div>
+</div>
+
+<div class="ucard-overlay" id="ucardOverlay">
+  <div class="ucard">
+    <button class="ucard-close" id="ucClose">✕</button>
+    <div class="ucard-head">
+      <div class="ucard-avatar" id="ucAvatar"></div>
+      <div class="ucard-name" id="ucName"></div>
+      <div class="ucard-bio" id="ucBio"></div>
+    </div>
+    <div class="ucard-stats" id="ucStats"></div>
+    <div class="ucard-actions" id="ucActions"></div>
+    <div class="ucard-posts-head">TA 的帖子</div>
+    <div class="ucard-posts" id="ucPosts"></div>
+  </div>
+</div>
+
+<div class="notice-panel" id="noticePanel">
+  <div class="panel-head">
+    <button id="noticeBack" style="visibility:hidden">←</button>
+    <span class="t">通知中心</span>
+    <button id="noticeClose">✕</button>
+  </div>
+  <div class="panel-body" id="noticeBody"></div>
+</div>
+
+<div class="fav-panel" id="favPanel">
+  <div class="panel-head">
+    <button id="favBack" style="visibility:hidden">←</button>
+    <span class="t">我的收藏</span>
+    <button id="favClose">✕</button>
+  </div>
+  <div class="panel-body" id="favBody"></div>
+</div>
+
+<div class="msg" id="msgPanel">
+  <div class="panel-head">
+    <button id="msgBack" style="visibility:hidden">←</button>
+    <span class="t" id="msgTitle">消息</span>
+    <button id="msgClose">✕</button>
+  </div>
+  <div class="mtabs" id="mtabs">
+    <button class="mtab on" data-t="friends">好友</button>
+    <button class="mtab" data-t="discover">发现</button>
+  </div>
+  <div class="add-bar" id="addBar">
+    <input id="addName" placeholder="输入用户名添加" maxlength="12">
+    <button class="btn" id="addGo">添加</button>
+  </div>
+  <div class="panel-body" id="msgBody"></div>
+  <div class="chat-input" id="chatInput" style="display:none">
+    <input id="chatText" placeholder="发消息…" maxlength="200">
+    <button class="btn" id="chatSend">发送</button>
+  </div>
+</div>
+
+<script>
+/* ===================== 数据与人设（新增游戏、情感） ===================== */
+var BOTS=[
+{n:'管理员',i:'管',bg:'#4f6ef7',bio:'微光论坛的最高裁决者。',cat:'notice', persona:'严肃、官方、话少。'},
+{n:'老K',i:'老',bg:'#64748b',bio:'十年技术老兵，坚定的唯物主义者。',cat:'tech', persona:'理智、喜欢用科学解释一切、有点爱抬杠，极度反感神神叨叨的人。'},
+{n:'南风',i:'南',bg:'#b91c1c',bio:'最近被租房里的怪事折磨得精神衰弱，脾气暴躁。',cat:'horror', persona:'暴躁、焦虑、神经质、容易破防。'},
+{n:'夜行',i:'夜',bg:'#111',bio:'喜欢收集各种都市传说，经常半夜出没。',cat:'horror', persona:'神神叨叨、故弄玄虚、喜欢附和恐怖氛围，非常讨厌老K这种死脑筋。'},
+{n:'橘子汽水',i:'橘',bg:'#f97316',bio:'爱喝汽水的产品经理，又菜又爱看恐怖片。',cat:'life', persona:'胆小、情绪丰富、喜欢吃瓜。'},
+{n:'Leo',i:'L',bg:'#8b5cf6',bio:'热心肠的前端开发，什么技术都懂一点。',cat:'tech', persona:'热心、专业、喜欢帮人排查bug。'},
+{n:'阿泽',i:'阿',bg:'#4f6ef7',bio:'前端 / 图形学爱好者。',cat:'tech', persona:'技术宅、喜欢硬核讨论。'},
+{n:'小满',i:'小',bg:'#f59e0b',bio:'生活区常驻 · 桌搭分享。',cat:'life', persona:'精致、懂生活、说话温柔。'},
+{n:'青柠',i:'青',bg:'#10b981',bio:'正在学习 TypeScript。',cat:'qna', persona:'萌新、经常问小白问题、容易崇拜大佬。'},
+{n:'游戏狂魔',i:'游',bg:'#ef4444',bio:'Steam 库里一万个游戏没玩，天天在论坛吹水。',cat:'game', persona:'硬核玩家、喜欢疯狂安利游戏、说话带梗。'},
+{n:'情感大师',i:'情',bg:'#ec4899',bio:'知心大姐姐，专门解决恋爱脑和情感困惑。',cat:'emotion', persona:'温柔、成熟、善于倾听、经常一针见血。'}
+];
+
+var DEFAULT_IDS = {999:1, 101:1, 1:1, 102:1, 103:1};
+var defaultPosts=[
+{id:999,cat:'notice',tag:'公告',time:Date.now()-86400000*2,title:'【必读】微光论坛社区秩序与发言规则',author:'管理员',ini:'管',bg:'#4f6ef7',views:9999,likes:999,isTop:true,body:['欢迎来到微光论坛。为了维护良好的交流环境，请大家遵守以下规则：','1. 禁止发布违法违规内容。','2. 友善交流，禁止人身攻击。'], cmts:[]},
+{id:102,cat:'game',tag:'讨论',time:Date.now()-3600000*5,title:'黑神话悟空到底好不好玩？客观评价一下',author:'游戏狂魔',ini:'游',bg:'#ef4444',views:2341,likes:88,body:['刚通关二周目，客观说画面和战斗真的顶。','但是地图引导太差了，经常迷路。大家怎么看？'],cmts:[]},
+{id:103,cat:'emotion',tag:'求助',time:Date.now()-3600000*8,title:'和女朋友异地恋三年了，最近感觉快坚持不下去了……',author:'橘子汽水',ini:'橘',bg:'#f97316',views:1500,likes:45,body:['最近工作忙，经常没时间回消息。','她一闹情绪我就觉得很累，我该怎么办？'],cmts:[]},
+{id:101,cat:'horror',tag:'求助',time:Date.now()-3600000*2,title:'【求助】租的房子每天凌晨3点，楼上准时传来弹珠掉地上的声音',author:'南风',ini:'南',bg:'#b91c1c',views:3452,likes:128,body:['我刚搬来这个老小区一个月，住顶楼。','但是每天凌晨3点左右，天花板上就会传来那种玻璃弹珠掉在地上，然后一路弹跳滚远的声音。','我上去看过，天台的门是锁死的，根本没人上去过。','我现在整个人都不好了，有没有懂的老哥？'],
+cmts:[{name:'老K',ini:'老',bg:'#64748b',time:Date.now()-3600000*1.5,text:'别自己吓自己，这就是钢筋热胀冷缩的声音。'},{name:'夜行',ini:'夜',bg:'#111',time:Date.now()-3600000*1,text:'老K你别瞎科普了。楼主，今晚弹珠声响的时候，往天花板扔个硬币试试。'}]},
+{id:1,cat:'tech',tag:'技术',time:Date.now()-3600000*3,title:'有没有人一起研究一下 WebGPU 的实际落地场景？',author:'阿泽',ini:'阿',bg:'#4f6ef7',views:342,likes:24,body:['最近在做一个数据可视化项目，用 Canvas 2D 性能遇到瓶颈。','想试试 WebGPU 但不知道生态成熟度如何。'],cmts:[]}
+];
+
+var savedPosts = JSON.parse(localStorage.getItem('forum_posts') || '[]');
+var POSTS = defaultPosts.slice();
+var existIds = {};
+for (var i=0;i<POSTS.length;i++) existIds[POSTS[i].id]=true;
+for (var i=0;i<savedPosts.length;i++){ if(!existIds[savedPosts[i].id]) POSTS.push(savedPosts[i]); }
+
+var cur=null, dLiked=false, CU=localStorage.getItem('forum_user')||'';
+var _scrollY = 0;
+var FRIENDS=JSON.parse(localStorage.getItem('forum_friends')||'[]');
+var MSGS=JSON.parse(localStorage.getItem('forum_msgs')||'{}');
+var UNREAD=JSON.parse(localStorage.getItem('forum_unread')||'{}');
+var NOTICES=JSON.parse(localStorage.getItem('forum_notices')||'[]');
+var curChat=null, msgTab='friends';
+var AI_KEY=localStorage.getItem('forum_ai_key')||'';
+var AI_URL=localStorage.getItem('forum_ai_url')||'https://api.deepseek.com/chat/completions';
+var AI_MODEL=localStorage.getItem('forum_ai_model')||'deepseek-chat';
+var curFilter='all', curSearch='';
+var editingPostId=null;
+var FAVS = JSON.parse(localStorage.getItem('forum_favs') || '[]');
+
+var filteredPosts = [];
+var currentPage = 1;
+var PAGE_SIZE = 10;
+var isLoading = false;
+var currentLoadSession = 0;
+
+if(localStorage.getItem('forum_theme')==='dark') document.body.classList.add('dark');
+
+/* ===================== 基础工具 ===================== */
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function byId(id){for(var i=0;i<POSTS.length;i++)if(POSTS[i].id===id)return POSTS[i];return null}
+function isFav(id){ return FAVS.indexOf(id) >= 0; }
+function toggleFav(id){
+  var i = FAVS.indexOf(id);
+  if(i >= 0) FAVS.splice(i,1); else FAVS.push(id);
+  localStorage.setItem('forum_favs', JSON.stringify(FAVS));
+  return i < 0;
+}
+function saveAll(){
+  var userPosts = POSTS.filter(function(p){ return !DEFAULT_IDS[p.id]; });
+  try {
+    localStorage.setItem('forum_posts', JSON.stringify(userPosts));
+    localStorage.setItem('forum_friends', JSON.stringify(FRIENDS));
+    localStorage.setItem('forum_msgs', JSON.stringify(MSGS));
+    localStorage.setItem('forum_unread', JSON.stringify(UNREAD));
+    localStorage.setItem('forum_notices', JSON.stringify(NOTICES));
+  } catch (e) { showToast('⚠️ 本地存储已满', true); }
+}
+function formatTime(ts){
+  if(!ts) return '刚刚';
+  var diff = Date.now() - ts;
+  if(diff < 60000) return '刚刚';
+  if(diff < 3600000) return Math.floor(diff/60000) + ' 分钟前';
+  if(diff < 86400000) return Math.floor(diff/3600000) + ' 小时前';
+  return Math.floor(diff/86400000) + ' 天前';
+}
+function isFriend(name){for(var i=0;i<FRIENDS.length;i++)if(FRIENDS[i].name===name)return true;return false}
+function getUser(name){
+  for(var i=0;i<BOTS.length;i++)if(BOTS[i].n===name)return BOTS[i];
+  for(var i=0;i<POSTS.length;i++){
+    if(POSTS[i].author===name)return {n:name,i:POSTS[i].ini,bg:POSTS[i].bg,bio:'社区活跃用户',persona:'普通网友'};
+    for(var j=0;j<POSTS[i].cmts.length;j++){
+      var c=POSTS[i].cmts[j];
+      if(c.name===name)return {n:name,i:c.ini,bg:c.bg,bio:'社区活跃用户',persona:'普通网友'};
+    }
+  }
+  return {n:name,i:name.charAt(0),bg:'#4f6ef7',bio:'刚加入的新人',persona:'普通网友'};
+}
+function showToast(msg, isErr){
+  var t = document.querySelector('.toast');
+  if(!t){ t = document.createElement('div'); t.className='toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.toggle('err', !!isErr);
+  t.classList.add('on');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.classList.remove('on'); }, 2600);
+}
+
+/* ===================== Markdown & 图片 ===================== */
+function parseMarkdown(text){
+  var safe = esc(text);
+  safe = safe.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+  return safe.replace(/@([^\s，。！？,.!?]+)/g, function(match, name){
+    return '<span class="mention" data-mname="'+name+'">@'+name+'</span>';
+  });
+}
+function addEmoji(emoji){ var input = $('cInput'); input.value += emoji; input.focus(); }
+function openImgPreview(src){ $('previewImg').src = src; $('imgPreview').classList.add('on'); }
+function closeImgPreview(){ $('imgPreview').classList.remove('on'); }
+
+function compressAndGetBase64(file, callback){
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
+      var maxW = 300, scale = maxW / img.width; if(scale > 1) scale = 1;
+      canvas.width = img.width * scale; canvas.height = img.height * scale;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      callback(canvas.toDataURL('image/jpeg', 0.6));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ===================== 通知中心 ===================== */
+function addNotice(type, postId, text){
+  if(!CU) return;
+  NOTICES.unshift({ id: Date.now() + Math.random(), type: type, postId: postId, text: text, time: Date.now(), read: false });
+  if(NOTICES.length > 50) NOTICES.pop();
+  saveAll(); updateNoticeDot();
+  if(!$('noticePanel').classList.contains('on')) showToast('收到新通知 🔔');
+}
+function updateNoticeDot(){
+  var unread = NOTICES.filter(function(n){ return !n.read; }).length;
+  var dot = $('noticeDot'); if(unread > 0){ dot.textContent = unread; dot.classList.add('on'); } else dot.classList.remove('on');
+}
+function openNoticePanel(){ $('noticePanel').classList.add('on'); renderNotices(); NOTICES.forEach(function(n){ n.read = true; }); saveAll(); updateNoticeDot(); }
+function closeNoticePanel(){ $('noticePanel').classList.remove('on'); }
+function renderNotices(){
+  var body = $('noticeBody');
+  if(!NOTICES.length){ body.innerHTML = '<div class="msg-empty">暂时没有通知</div>'; return; }
+  var h = '';
+  for(var i=0; i<NOTICES.length; i++){
+    var n = NOTICES[i];
+    h += '<div class="notice-item '+(n.read?'':'unread')+'" data-nid="'+n.id+'"><div class="ntext">'+esc(n.text)+'<div class="ntime">'+formatTime(n.time)+'</div></div></div>';
+  }
+  body.innerHTML = h;
+  body.querySelectorAll('.notice-item').forEach(function(item){
+    item.onclick = function(){
+      var nid = +this.getAttribute('data-nid');
+      var n = NOTICES.find(function(x){ return x.id === nid; });
+      if(n && n.postId){ closeNoticePanel(); openPost(n.postId); }
+    };
+  });
+}
+
+/* ===================== 列表渲染 ===================== */
+function applyFilterAndRender(){
+  currentLoadSession++;
+  var sortedPosts = POSTS.slice().sort(function(a,b){
+    if(a.isTop && !b.isTop) return -1;
+    if(!a.isTop && b.isTop) return 1;
+    if((localStorage.getItem('sortMode')||'new')==='hot'){
+      var sa = ((a.likes||0)*2 + (a.cmts||[]).length*3 + 1) / Math.pow((Date.now()-(a.time||0))/3600000 + 2, 0.8);
+      var sb = ((b.likes||0)*2 + (b.cmts||[]).length*3 + 1) / Math.pow((Date.now()-(b.time||0))/3600000 + 2, 0.8);
+      return sb - sa;
+    }
+    return b.time - a.time;
+  });
+
+  var kw = curSearch.trim().toLowerCase();
+  filteredPosts = sortedPosts.filter(function(p){
+    if(curFilter!=='all' && p.cat!==curFilter && !p.isTop) return false;
+    if(kw){
+      var hay = (p.title+' '+p.body.join(' ')+' '+p.author).toLowerCase();
+      if(hay.indexOf(kw)<0) return false;
+    }
+    return true;
+  });
+
+  $('list').innerHTML = '';
+  currentPage = 1;
+  isLoading = false;
+  $('empty').style.display = filteredPosts.length ? 'none' : 'block';
+  if(!filteredPosts.length) $('empty').textContent = kw ? '没有找到相关帖子' : '这个板块目前很安静……';
+
+  $('sortNew').style.background = (localStorage.getItem('sortMode')==='new'||!localStorage.getItem('sortMode')) ? 'var(--primary)' : '';
+  $('sortNew').style.color = (localStorage.getItem('sortMode')==='new'||!localStorage.getItem('sortMode')) ? '#fff' : '';
+  $('sortHot').style.background = (localStorage.getItem('sortMode')==='hot') ? 'var(--primary)' : '';
+  $('sortHot').style.color = (localStorage.getItem('sortMode')==='hot') ? '#fff' : '';
+
+  loadMore();
+}
+
+function loadMore(){
+  if(isLoading) return;
+  var start = (currentPage - 1) * PAGE_SIZE;
+  var end = currentPage * PAGE_SIZE;
+  var slice = filteredPosts.slice(start, end);
+  if(slice.length === 0) return;
+
+  isLoading = true;
+  var mySession = currentLoadSession;
+  $('loadingMore').style.display = 'block';
+
+  setTimeout(function(){
+    if(mySession !== currentLoadSession) { isLoading = false; return; }
+    var h = '';
+    for(var i=0; i<slice.length; i++){
+      var p = slice[i];
+      var isH = p.cat==='horror';
+      var cls = p.isTop ? 'post pinned' : 'post';
+      var isMine = (p.author===CU);
+
+      h+='<div class="'+cls+'" data-id="'+p.id+'" data-cat="'+p.cat+'">';
+      if(isMine){ h+='<div class="post-menu"><button data-edit="'+p.id+'">✎</button><button data-del="'+p.id+'">🗑</button></div>'; }
+      h+='<h3 style="'+(isH?'color:#b91c1c':'')+'">';
+      if(p.isTop) h+='<span class="badge-pin">置顶</span>';
+      h+=esc(p.title)+'</h3>';
+      h+='<p>'+esc(p.body[0])+'</p>';
+
+      if(p.images && p.images.length){
+        h+='<div class="post-imgs">';
+        for(var im=0; im<p.images.length; im++){ h+='<img class="post-img" src="'+p.images[im]+'" data-img="'+p.images[im]+'">'; }
+        h+='</div>';
+      }
+
+      h+='<div class="meta"><span class="mav" style="background:'+p.bg+'">'+esc(p.ini)+'</span>';
+      h+='<span class="pname" data-uname="'+esc(p.author)+'">'+esc(p.author)+'</span>';
+      h+='<span>'+formatTime(p.time)+'</span>';
+      h+='<span>💬 '+p.cmts.length+'</span><span>👁 '+p.views+'</span>';
+      h+='<button class="like '+((p.likedByMe)?'on':'')+'" data-like="'+p.id+'"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 000-7.8z"/></svg><span class="lc">'+p.likes+'</span></button>';
+      h+='<button class="like '+((isFav(p.id))?'on':'')+'" data-fav="'+p.id+'"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></button>';
+      h+='</div></div>';
+    }
+
+    var tempDiv = document.createElement('div'); tempDiv.innerHTML = h;
+    while(tempDiv.firstChild){ $('list').appendChild(tempDiv.firstChild); }
+    currentPage++;
+    isLoading = false;
+    $('loadingMore').style.display = (currentPage * PAGE_SIZE >= filteredPosts.length) ? 'none' : 'block';
+  }, 300);
+}
+
+window.addEventListener('scroll', function(){
+  if(isLoading) return;
+  var scrollBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+  if(scrollBottom < 100){ loadMore(); }
+});
+
+$('list').onclick = function(e){
+  if(e.target.closest('[data-fav]')){
+    var pid = +e.target.closest('[data-fav]').getAttribute('data-fav');
+    var now = toggleFav(pid); e.target.closest('[data-fav]').classList.toggle('on', now); showToast(now ? '已收藏' : '已取消收藏'); return;
+  }
+  if(e.target.closest('[data-like]')){
+    var b = e.target.closest('[data-like]');
+    var p = byId(+b.getAttribute('data-like')); if(!p) return;
+    p.likedByMe = !p.likedByMe; b.classList.toggle('on', p.likedByMe);
+    p.likes = p.likedByMe ? p.likes+1 : Math.max(0, p.likes-1);
+    b.querySelector('.lc').textContent = p.likes; saveAll(); return;
+  }
+  var img = e.target.closest('.post-img'); if(img){ openImgPreview(img.getAttribute('data-img')); return; }
+  var card = e.target.closest('.post'); if(!card) return;
+  if(e.target.closest('[data-edit]')){ openComposer(+e.target.closest('[data-edit]').getAttribute('data-edit')); return; }
+  if(e.target.closest('[data-del]')){ delPost(+e.target.closest('[data-del]').getAttribute('data-del')); return; }
+  var nm = e.target.closest('[data-uname]'); if(nm){ openUserCard(nm.getAttribute('data-uname')); return; }
+  openPost(+card.getAttribute('data-id'));
+};
+
+$('imgPreview').onclick = closeImgPreview;
+
+/* ===================== AI 核心引擎（含情绪联动） ===================== */
+function cleanAIText(t){
+  if(!t) return t;
+  t = t.replace(/\*[^*\n]{1,20}\*/g, '').replace(/（[^）\n]{1,20}）/g, '').replace(/\([^)\n]{1,20}\)/g, '');
+  t = t.replace(/\[[^\]\n]{1,20}\]/g, '').replace(/^[\s\-—:：]+/, '');
+  return t.replace(/\s{2,}/g, ' ').trim();
+}
+function fetchWithTimeout(url, opts, ms){
+  ms = ms || 20000;
+  var ctrl = new AbortController(); var timer = setTimeout(function(){ ctrl.abort(); }, ms);
+  opts.signal = ctrl.signal; return fetch(url, opts).finally(function(){ clearTimeout(timer); });
+}
+async function callAI(sysPrompt, userPrompt, maxTokens){
+  if(!AI_KEY) return '';
+  try{
+    var res = await fetchWithTimeout(AI_URL, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+AI_KEY},
+      body: JSON.stringify({ model: AI_MODEL, messages: [{role:'system', content: sysPrompt}, {role:'user', content: userPrompt || '回复'}], temperature: 0.85, max_tokens: maxTokens || 200 })
+    }, 25000);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    var data = await res.json();
+    if(!data.choices || !data.choices.length) return '';
+    var m = data.choices[0].message || {};
+    var txt = (m.content || '').trim() || (m.reasoning_content || '').trim();
+    return cleanAIText(txt.replace(/^["'“”]|["'“”]$/g,''));
+  }catch(e){ return ''; }
+}
+
+async function generateComment(post, targetCommentText, commenterName, isOP, lastCmt){
+  var commenter = getUser(commenterName);
+  var text = '', isAI = false, mentionTarget = '';
+
+  if(!isOP && targetCommentText && Math.random()<0.3){
+    var names = [];
+    for(var i=0;i<post.cmts.length;i++){ var n = post.cmts[i].name; if(n!==commenterName && n!==CU && names.indexOf(n)<0) names.push(n); }
+    if(names.length) mentionTarget = names[Math.floor(Math.random()*names.length)];
+  }
+
+  // ======= 核心：情绪联动 / 吵架系统 =======
+  var conflictPrompt = '';
+  var lastAuthor = lastCmt ? lastCmt.name : '';
+
+  if(commenter.n === '老K' && lastAuthor === '夜行'){
+    conflictPrompt = '你极其讨厌夜行这种装神弄鬼的人。请用冷嘲热讽、坚定科学的语气怼他。';
+  } else if(commenter.n === '夜行' && lastAuthor === '老K'){
+    conflictPrompt = '你觉得老K是个毫无敬畏之心的死脑筋。请用神神叨叨、诡异或带点恐吓的语气反驳他。';
+  } else if(commenter.n === '橘子汽水' && lastAuthor === '老K'){
+    conflictPrompt = '你胆子小，虽然觉得老K有道理，但还是忍不住害怕，请表达这种矛盾心理。';
+  }
+
+  if(AI_KEY){
+    var sys = '你叫'+commenter.n+'。你的性格：'+commenter.persona+'。\n帖子标题：《'+post.title+'》\n楼主：'+post.author+'\n内容："'+post.body.join(' ')+'"\n';
+    var atMatch = targetCommentText ? targetCommentText.match(/@([^\s，。！？,.!?]+)/) : null;
+    var atName = atMatch ? atMatch[1] : '';
+
+    if(atName && atName !== commenter.n && !isOP) return {text:'', skip:true};
+
+    if(conflictPrompt) sys += conflictPrompt + ' ';
+    else if(isOP) sys += '你是楼主。网友对你说："'+targetCommentText+'"。请简短回复（20字以内），可以补充细节或反驳。';
+    else if(atName && atName === commenter.n) sys += '有人 @ 了你，对你说："'+targetCommentText+'"。请针对回复一句（20字以内）。';
+    else sys += '有人说："'+targetCommentText+'"。请作为网友回复一句（20字以内），可附和或质疑。';
+
+    sys += '\n【重要】只输出纯文字评论，禁止任何动作描写，就像真人在论坛打字。';
+    var aiText = await callAI(sys, '回复', 120);
+    if(aiText){ text = aiText; isAI = true; }
+  }
+
+  if(!text){
+    var isHorror = post.cat==='horror', isTech = post.cat==='tech';
+    // 本地兜底的吵架逻辑
+    if(commenter.n === '老K' && lastAuthor === '夜行'){
+      text = ['夜行你别在这妖言惑众了，根本没有任何科学依据！','你这就是典型的心理暗示，别误导楼主。','建议楼主去医院看看精神科，别听他的。'][Math.floor(Math.random()*3)];
+    } else if(commenter.n === '夜行' && lastAuthor === '老K'){
+      text = ['老K你懂个屁，科学能解释所有事吗？','你晚上一个人走夜路试试，看科学能不能保护你。','别理他楼主，他不敬鬼神，迟早吃亏。'][Math.floor(Math.random()*3)];
+    } else if(isOP) {
+      text = isHorror ? '我发誓我真的没撒谎，声音特别清晰。' : (isTech ? '这个方法我试过了，还是不行。' : '哈哈哈哈确实。');
+    } else {
+      if(commenter.n==='老K') text = isHorror ? '这世界上哪有鬼，都是心理作用。' : '你这段代码内存泄漏了。';
+      else if(commenter.n==='游戏狂魔') text = '这波操作可以，加个好友一起玩？';
+      else if(commenter.n==='情感大师') text = '楼主，感情的事情急不得，要慢慢沟通。';
+      else text = isHorror ? '大半夜看这个，我鸡皮疙瘩都起来了。' : '前排围观大佬。';
+    }
+    if(mentionTarget && Math.random()<0.6) text = '@'+mentionTarget+' '+text;
+  }
+  return {text:text, isAI:isAI, isLocal:!isAI};
+}
+
+async function triggerAutoComments(postId, isUserPost){
+  var p = byId(postId); if(!p) return;
+  var candidates = BOTS.filter(function(b){ return b.n!==p.author && b.n!=='管理员' && b.n!==CU; });
+  if(!candidates.length) return;
+  var numComments = isUserPost ? (Math.floor(Math.random()*2)+3) : (Math.floor(Math.random()*2)+2);
+
+  for(let i=0;i<numComments;i++){
+    var delay = isUserPost ? (i*2500 + 800 + Math.random()*800) : (i*3500 + 2000 + Math.random()*2000);
+    setTimeout(async function(){
+      var currentPost = byId(postId); if(!currentPost) return;
+      var bot = candidates[Math.floor(Math.random()*candidates.length)];
+      if(!bot || currentPost.cmts.some(function(c){ return c.name===bot.n; })) return;
+
+      var lastCmt = currentPost.cmts.length>0 ? currentPost.cmts[currentPost.cmts.length-1] : null;
+      var lastComment = lastCmt ? lastCmt.text : '';
+
+      if(lastComment){
+        var m = lastComment.match(/@([^\s，。！？,.!?]+)/);
+        if(m && m[1] && m[1] !== bot.n) return;
+      }
+
+      var res = await generateComment(currentPost, lastComment, bot.n, false, lastCmt);
+      if(res.skip || !res.text || !res.text.trim()) return;
+
+      currentPost.cmts.push({name:bot.n, ini:bot.i, bg:bot.bg, time:Date.now(), text:res.text, isAI:res.isAI, isLocal:res.isLocal, likes:0});
+      saveAll();
+      if(cur===currentPost.id) renderCmts(currentPost);
+      updateCardCount(currentPost);
+      if(currentPost.author === CU) { addNotice('reply', currentPost.id, bot.n + ' 回复了你的帖子《' + currentPost.title.slice(0,10) + '...》'); }
+
+      // 有一定概率让楼主（如果是AI）也下场互怼
+      if(Math.random()<0.4 && currentPost.author!=='管理员'){
+        setTimeout(async function(){
+          var opRes = await generateComment(currentPost, res.text, currentPost.author, true);
+          if(opRes.skip || !opRes.text || !opRes.text.trim()) return;
+          var opUser = getUser(currentPost.author);
+          currentPost.cmts.push({name:currentPost.author, ini:opUser.i, bg:opUser.bg, time:Date.now(), text:opRes.text, isAI:opRes.isAI, isLocal:opRes.isLocal, likes:0});
+          saveAll();
+          if(cur===currentPost.id) renderCmts(currentPost);
+          updateCardCount(currentPost);
+        }, 4000);
+      }
+    }, delay);
+  }
+}
+
+async function makeBotPost(bot){
+  var newPost = null;
+  var hasImg = Math.random() < 0.3;
+  var imgUrls = [
+    'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400&q=80',
+    'https://images.unsplash.com/photo-1509248961158-e54f6934749c?w=400&q=80',
+    'https://images.unsplash.com/photo-1505682634904-d7c8d95cdc50?w=400&q=80'
+  ];
+
+  if(AI_KEY){
+    var sys = '你是'+bot.n+'，性格：'+bot.persona+'。请返回 JSON：{"title":"标题","body":["内容"]}';
+    var raw = await callAI(sys, '发帖', 300);
+    if(raw){
+      try{
+        var match = raw.match(/\{[\s\S]*\}/);
+        if(match){
+          var parsed = JSON.parse(match[0]);
+          if(parsed.title && Array.isArray(parsed.body) && parsed.body.length){
+            newPost = {id:Date.now()+Math.floor(Math.random()*1000),cat:bot.cat,tag:'日常',time:Date.now(),title:parsed.title,author:bot.n,ini:bot.i,bg:bot.bg,views:1,likes:0,body:parsed.body,cmts:[]};
+            if(hasImg) newPost.images = [imgUrls[Math.floor(Math.random()*imgUrls.length)]];
+          }
+        }
+      }catch(e){}
+    }
+  }
+  if(!newPost){
+    var pool = {
+      horror:['刚刚好像看到窗外有个人影','半夜听到有人叫我的名字'],
+      tech:['踩坑记录：千万别用这个库','今天写了个优雅的函数'],
+      life:['周末去爬山了，风景真好','买了束花'],
+      chat:['今天天气真好，大家摸鱼了吗？','好无聊啊，有没有人聊天'],
+      game:['刚买了个新游戏，肝了一晚上','求推荐好玩的联机游戏'],
+      emotion:['异地恋真的太难了','分手后怎么走出来？']
+    };
+    var arr = pool[bot.cat] || pool['chat'];
+    newPost = {id:Date.now()+Math.floor(Math.random()*1000),cat:bot.cat,tag:'日常',time:Date.now(),title:arr[Math.floor(Math.random()*arr.length)],author:bot.n,ini:bot.i,bg:bot.bg,views:1,likes:0,body:['今天发生了点事。'],cmts:[]};
+    if(hasImg) newPost.images = [imgUrls[Math.floor(Math.random()*imgUrls.length)]];
+  }
+  return newPost;
+}
+
+async function autoPostOnce(){
+  var candidates = BOTS.filter(function(b){ return b.n!=='管理员'; });
+  var bot = candidates[Math.floor(Math.random()*candidates.length)];
+  var newPost = await makeBotPost(bot); if(!newPost) return;
+  POSTS.unshift(newPost); saveAll(); applyFilterAndRender();
+  triggerAutoComments(newPost.id, false);
+}
+
+function startAutoPost(){
+  function loop(){
+    var delay = 120000 + Math.random()*120000;
+    setTimeout(async function(){ await autoPostOnce(); loop(); }, delay);
+  }
+  loop();
+}
+
+/* ===================== 详情页 & 神评高亮 ===================== */
+function openPost(id){
+  var p = byId(id); if(!p) return;
+  _scrollY = window.scrollY;
+  p.views = (p.views||0) + 1;
+  cur = id; dLiked = !!p.likedByMe;
+
+  var titleHTML = p.isTop ? '<span class="badge-pin" style="vertical-align:middle;">置顶</span>' : '';
+  $('dTitle').innerHTML = titleHTML + esc(p.title);
+  $('dTitle').style.color = p.cat==='horror' ? '#b91c1c' : '';
+  $('dMeta').textContent = p.tag+' · '+formatTime(p.time)+' · '+p.author;
+  $('dViews').textContent = p.views;
+  $('dLikeCount').textContent = p.likes;
+  $('dLike').classList.toggle('on', dLiked);
+  renderFriendBar(p);
+
+  var b='';
+  for(var i=0;i<p.body.length;i++) b += '<p>'+parseMarkdown(p.body[i])+'</p>';
+  if(p.images && p.images.length){
+    b += '<div class="post-imgs">';
+    for(var im=0; im<p.images.length; im++){ b += '<img class="post-img" style="width:120px;height:120px" src="'+p.images[im]+'" data-img="'+p.images[im]+'">'; }
+    b += '</div>';
+  }
+  $('dBody').innerHTML = b;
+  $('dBody').querySelectorAll('.post-img').forEach(function(img){ img.onclick = function(){ openImgPreview(img.getAttribute('data-img')); }; });
+
+  renderCmts(p);
+  $('cInput').value = '';
+  $('detail').classList.add('on');
+  $('detail').scrollIntoView({behavior:'smooth', block:'start'});
+
+  var dact = document.querySelector('.dact');
+  var old = dact.querySelector('[data-dfav]'); if(old) old.remove();
+  var btn = document.createElement('button');
+  btn.className = 'like' + (isFav(cur) ? ' on' : '');
+  btn.setAttribute('data-dfav', cur);
+  btn.innerHTML = '⭐<span style="margin-left:4px">'+(isFav(cur)?'已收藏':'收藏')+'</span>';
+  btn.onclick = function(){
+    var now = toggleFav(cur); this.classList.toggle('on', now); this.querySelector('span').textContent = now ? '已收藏' : '收藏';
+    var listBtn = document.querySelector('.post[data-id="'+cur+'"] [data-fav]'); if(listBtn) listBtn.classList.toggle('on', now);
+    showToast(now ? '已收藏' : '已取消收藏');
+  };
+  dact.appendChild(btn);
+
+  clearTimeout(window._viewSaveTimer);
+  window._viewSaveTimer = setTimeout(saveAll, 2000);
+}
+
+function renderFriendBar(p){
+  var bar = $('dFriendBar');
+  if(p.author===CU){ bar.innerHTML='<span style="color:var(--muted)">这是你自己的帖子</span>'; return; }
+  if(isFriend(p.author)){
+    bar.innerHTML = '<span class="ok">✓ 已是好友</span> <button id="chatFromPost">发私信</button>';
+    $('chatFromPost').onclick = function(){ openMsg(); openChat(p.author); };
+  }else{
+    bar.innerHTML = '<button id="addFromPost">+ 加 '+esc(p.author)+' 为好友</button>';
+    $('addFromPost').onclick = function(){
+      if(!CU){ openAuth(); return; }
+      if(isFriend(p.author)) return;
+      FRIENDS.push({name:p.author, ini:p.ini, bg:p.bg, bio:getUser(p.author).bio});
+      saveAll(); renderFriendBar(p); showToast('已添加 '+p.author+' 为好友');
+    };
+  }
+}
+
+function renderCmts(p){
+  var box = $('dCmts');
+  $('dCmtCount').textContent = p.cmts.length;
+  if(!p.cmts.length){ box.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:8px 0">还没有评论，来抢沙发～</div>'; return; }
+
+  // 核心：排序逻辑（神评 > 楼主 > 按时间）
+  var sortedCmts = p.cmts.slice().sort(function(a,b){
+    var aHot = (a.likes || 0) >= 3;
+    var bHot = (b.likes || 0) >= 3;
+    if(aHot && !bHot) return -1;
+    if(!aHot && bHot) return 1;
+    if(aHot && bHot) return (b.likes||0) - (a.likes||0);
+    if(a.name === p.author && b.name !== p.author) return -1;
+    if(a.name !== p.author && b.name === p.author) return 1;
+    return (a.time||0) - (b.time||0);
+  });
+
+  var h = '';
+  for(var i=0;i<sortedCmts.length;i++){
+    var c = sortedCmts[i];
+    var isOP = c.name === p.author;
+    var isHot = (c.likes || 0) >= 3;
+    var badge = '';
+    if(isHot) badge += '<span class="hot-badge">🔥 神评</span>';
+    if(isOP) badge += '<span class="op-badge">楼主</span>';
+    else if(c.isAI) badge += '<span class="ai-badge">AI</span>';
+    else if(c.isLocal) badge += '<span class="local-badge">本地</span>';
+
+    h += '<div class="cmt">';
+    h += '<span class="mav" style="background:'+c.bg+'">'+esc(c.ini)+'</span>';
+    h += '<div style="flex:1;min-width:0">';
+    h += '<div><b data-uname="'+esc(c.name)+'">'+esc(c.name)+'</b>'+badge;
+    h += '<small>'+formatTime(c.time)+'</small>';
+    h += '<span class="creply" data-reply="'+esc(c.name)+'">回复</span>';
+    h += '</div>';
+    h += '<div class="tx">'+parseMarkdown(c.text)+'</div>';
+    
+    // 评论点赞按钮
+    h += '<div class="cmt-actions">';
+    h += '<span class="cmt-like '+((c.likedByMe)?'on':'')+'" data-cmtlike="'+c.id+'">';
+    h += '<svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 000-7.8z"/></svg>';
+    h += (c.likes || 0) > 0 ? '<span>'+(c.likes)+'</span>' : '';
+    h += '</span></div>';
+    h += '</div></div>';
+  }
+  box.innerHTML = h;
+
+  box.querySelectorAll('[data-uname]').forEach(function(el){ el.onclick = function(){ openUserCard(el.getAttribute('data-uname')); }; });
+  box.querySelectorAll('.mention').forEach(function(el){ el.onclick = function(){ openUserCard(el.getAttribute('data-mname')); }; });
+  box.querySelectorAll('[data-reply]').forEach(function(el){
+    el.onclick = function(){
+      var name = el.getAttribute('data-reply');
+      $('cInput').value = '@'+name+' ';
+      $('cInput').focus();
+    };
+  });
+  
+  // 绑定评论点赞事件
+  box.querySelectorAll('[data-cmtlike]').forEach(function(el){
+    el.onclick = function(e){
+      e.stopPropagation();
+      var cid = el.getAttribute('data-cmtlike');
+      var targetCmt = p.cmts.find(function(x){ return String(x.id) === String(cid); });
+      if(!targetCmt) return;
+      targetCmt.likedByMe = !targetCmt.likedByMe;
+      targetCmt.likes = (targetCmt.likes || 0) + (targetCmt.likedByMe ? 1 : -1);
+      saveAll();
+      renderCmts(p);
+    };
+  });
+}
+
+function updateCardCount(p){
+  var card = document.querySelector('.post[data-id="'+p.id+'"]');
+  if(!card) return;
+  var meta = card.querySelector('.meta');
+  if(!meta) return;
+  var spans = meta.querySelectorAll('span');
+  for(var i=0;i<spans.length;i++){
+    if(spans[i].textContent.indexOf('💬')===0) spans[i].textContent = '💬 '+p.cmts.length;
+    if(spans[i].textContent.indexOf('👁')===0) spans[i].textContent = '👁 '+p.views;
+  }
+}
+
+$('dClose').onclick = function(){ $('detail').classList.remove('on'); cur = null; window.scrollTo({top:_scrollY, behavior:'smooth'}); };
+$('dLike').onclick = function(){
+  if(!cur) return;
+  var p = byId(cur); if(!p) return;
+  p.likedByMe = !p.likedByMe; dLiked = p.likedByMe;
+  p.likes = dLiked ? p.likes+1 : Math.max(0, p.likes-1);
+  this.classList.toggle('on', dLiked); $('dLikeCount').textContent = p.likes;
+  var listBtn = document.querySelector('.post[data-id="'+cur+'"] [data-like]');
+  if(listBtn){ listBtn.classList.toggle('on', dLiked); var lc = listBtn.querySelector('.lc'); if(lc) lc.textContent = p.likes; }
+  saveAll();
+};
+
+$('cSend').onclick = async function(){
+  if(!cur) return;
+  if(!CU){ openAuth(); return; }
+  var input = $('cInput');
+  var text = input.value.trim();
+  if(!text){ showToast('评论不能为空', true); return; }
+
+  var p = byId(cur); if(!p) return;
+  var me = getUser(CU);
+  var newCmt = {id:Date.now(), name:CU, ini:me.i, bg:me.bg, time:Date.now(), text:text, isAI:false, isLocal:false, likes:0};
+  p.cmts.push(newCmt);
+  input.value = '';
+  saveAll(); renderCmts(p); updateCardCount(p);
+
+  // AI 楼主下场回复
+  if(p.author !== CU){
+    setTimeout(async function(){
+      var currentPost = byId(cur); if(!currentPost) return;
+      var res = await generateComment(currentPost, text, currentPost.author, true, newCmt);
+      if(res.skip || !res.text || !res.text.trim()) return;
+      var opUser = getUser(currentPost.author);
+      currentPost.cmts.push({id:Date.now()+1, name:currentPost.author, ini:opUser.i, bg:opUser.bg, time:Date.now(), text:res.text, isAI:res.isAI, isLocal:res.isLocal, likes:0});
+      saveAll();
+      if(cur===currentPost.id) renderCmts(currentPost);
+      updateCardCount(currentPost);
+    }, 1500 + Math.random()*1500);
+  }
+
+  triggerAutoComments(cur, false);
+};
+
+$('cInput').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); $('cSend').click(); } });
+
+/* ===================== 用户卡片 / 收藏 / 消息 ===================== */
+function openUserCard(name){
+  var u = getUser(name);
+  $('ucAvatar').textContent = u.i; $('ucAvatar').style.background = u.bg;
+  $('ucName').textContent = u.n; $('ucBio').textContent = u.bio || '这个人很神秘';
+
+  var posts = POSTS.filter(function(p){ return p.author===name; });
+  var totalLikes = posts.reduce(function(s,p){ return s+(p.likes||0); }, 0);
+  $('ucStats').innerHTML = '<span><b>'+posts.length+'</b>帖子</span><span><b>'+totalLikes+'</b>获赞</span>';
+
+  var actions = $('ucActions');
+  if(name === CU){
+    actions.innerHTML = '<button class="btn ghost" id="ucFavBtn">我的收藏</button>';
+    $('ucFavBtn').onclick = function(){ closeUserCard(); openFavPanel(); };
+  }else if(isFriend(name)){
+    actions.innerHTML = '<button class="btn" id="ucChatBtn">发私信</button>';
+    $('ucChatBtn').onclick = function(){ closeUserCard(); openMsg(); openChat(name); };
+  }else{
+    actions.innerHTML = '<button class="btn" id="ucAddBtn">+ 加好友</button>';
+    $('ucAddBtn').onclick = function(){
+      if(!CU){ closeUserCard(); openAuth(); return; }
+      if(isFriend(name)) return;
+      FRIENDS.push({name:name, ini:u.i, bg:u.bg, bio:u.bio});
+      saveAll(); showToast('已添加 '+name+' 为好友'); openUserCard(name);
+    };
+  }
+
+  var ph = '';
+  if(!posts.length) ph = '<div style="text-align:center;color:var(--muted);font-size:.8rem;padding:20px">还没有发过帖子</div>';
+  else{
+    for(var i=0;i<posts.length;i++){
+      var p = posts[i];
+      ph += '<div class="ucard-post" data-pid="'+p.id+'"><h4>'+esc(p.title)+'</h4><div class="m">'+formatTime(p.time)+' · 💬 '+p.cmts.length+' · 👁 '+p.views+'</div></div>';
+    }
+  }
+  $('ucPosts').innerHTML = ph;
+  $('ucPosts').querySelectorAll('.ucard-post').forEach(function(el){ el.onclick = function(){ closeUserCard(); openPost(+el.getAttribute('data-pid')); }; });
+  $('ucardOverlay').classList.add('on');
+}
+function closeUserCard(){ $('ucardOverlay').classList.remove('on'); }
+$('ucClose').onclick = closeUserCard;
+$('ucardOverlay').onclick = function(e){ if(e.target===this) closeUserCard(); };
+
+function openFavPanel(){ $('favPanel').classList.add('on'); renderFavs(); }
+function closeFavPanel(){ $('favPanel').classList.remove('on'); }
+$('favClose').onclick = closeFavPanel;
+function renderFavs(){
+  var body = $('favBody');
+  var favPosts = POSTS.filter(function(p){ return isFav(p.id); });
+  if(!favPosts.length){ body.innerHTML = '<div class="msg-empty">还没有收藏任何帖子</div>'; return; }
+  var h = '';
+  for(var i=0;i<favPosts.length;i++){
+    var p = favPosts[i];
+    h += '<div class="fav-item" data-pid="'+p.id+'"><button class="unfav" data-unfav="'+p.id+'">⭐</button><h4>'+esc(p.title)+'</h4><div class="m">'+esc(p.author)+' · '+formatTime(p.time)+'</div></div>';
+  }
+  body.innerHTML = h;
+  body.querySelectorAll('.fav-item').forEach(function(el){
+    el.onclick = function(e){
+      if(e.target.closest('[data-unfav]')){
+        var pid = +e.target.closest('[data-unfav]').getAttribute('data-unfav');
+        toggleFav(pid); renderFavs();
+        var listBtn = document.querySelector('.post[data-id="'+pid+'"] [data-fav]'); if(listBtn) listBtn.classList.remove('on');
+        return;
+      }
+      closeFavPanel(); openPost(+el.getAttribute('data-pid'));
+    };
+  });
+}
+
+function openMsg(){ $('msgPanel').classList.add('on'); renderMsg(); }
+function closeMsg(){ $('msgPanel').classList.remove('on'); curChat = null; $('chatInput').style.display = 'none'; $('mtabs').style.display = 'flex'; $('addBar').style.display = 'flex'; $('msgTitle').textContent = '消息'; }
+$('msgClose').onclick = closeMsg;
+
+function renderMsg(){
+  var body = $('msgBody');
+  if(curChat){
+    $('mtabs').style.display = 'none'; $('addBar').style.display = 'none'; $('chatInput').style.display = 'flex'; $('msgTitle').textContent = curChat;
+    var msgs = MSGS[curChat] || [], h = '<div class="chat">';
+    for(var i=0;i<msgs.length;i++){ h += '<div class="row '+(msgs[i].from===CU?'me':'them')+'"><div class="bubble">'+esc(msgs[i].text)+'</div></div>'; }
+    h += '</div>'; body.innerHTML = h; body.scrollTop = body.scrollHeight; return;
+  }
+  $('mtabs').style.display = 'flex'; $('addBar').style.display = msgTab==='discover' ? 'flex' : 'none'; $('chatInput').style.display = 'none'; $('msgTitle').textContent = '消息';
+  if(msgTab==='friends'){
+    if(!FRIENDS.length){ body.innerHTML = '<div class="msg-empty">还没有好友，去「发现」添加吧</div>'; return; }
+    var h = '';
+    for(var i=0;i<FRIENDS.length;i++){
+      var f = FRIENDS[i], msgs = MSGS[f.name] || [], last = msgs.length ? msgs[msgs.length-1].text : '打个招呼吧～', un = UNREAD[f.name] || 0;
+      h += '<div class="friend" data-fname="'+esc(f.name)+'"><span class="mav" style="background:'+f.bg+';width:36px;height:36px;font-size:.85rem">'+esc(f.ini)+'</span><div class="info"><div class="n" data-uname="'+esc(f.name)+'">'+esc(f.name)+'</div><div class="lm">'+esc(last)+'</div></div>';
+      if(un>0) h += '<span class="badge">'+un+'</span>';
+      h += '</div>';
+    }
+    body.innerHTML = h;
+    body.querySelectorAll('.friend').forEach(function(el){
+      el.onclick = function(e){
+        if(e.target.closest('[data-uname]')){ openUserCard(e.target.closest('[data-uname]').getAttribute('data-uname')); return; }
+        openChat(el.getAttribute('data-fname'));
+      };
+    });
+  }else{
+    var h = '';
+    for(var i=0;i<BOTS.length;i++){
+      var b = BOTS[i]; if(b.n===CU || isFriend(b.n)) continue;
+      h += '<div class="friend" data-addname="'+esc(b.n)+'"><span class="mav" style="background:'+b.bg+';width:36px;height:36px;font-size:.85rem">'+esc(b.i)+'</span><div class="info"><div class="n">'+esc(b.n)+'</div><div class="lm">'+esc(b.bio)+'</div></div><button class="btn" style="height:28px;font-size:.75rem">+ 添加</button></div>';
+    }
+    body.innerHTML = h || '<div class="msg-empty">没有可添加的用户</div>';
+    body.querySelectorAll('[data-addname]').forEach(function(el){
+      el.onclick = function(){
+        var name = el.getAttribute('data-addname'); if(isFriend(name)) return;
+        var u = getUser(name); FRIENDS.push({name:name, ini:u.i, bg:u.bg, bio:u.bio});
+        saveAll(); showToast('已添加 '+name); renderMsg();
+      };
+    });
+  }
+}
+
+function openChat(name){ curChat = name; UNREAD[name] = 0; saveAll(); updateUnreadDot(); renderMsg(); }
+$('chatSend').onclick = function(){
+  var input = $('chatText'), text = input.value.trim(); if(!text || !curChat) return;
+  if(!MSGS[curChat]) MSGS[curChat] = [];
+  MSGS[curChat].push({from:CU, text:text, time:Date.now()}); input.value = ''; saveAll(); renderMsg();
+  var friendName = curChat;
+  setTimeout(async function(){
+    var u = getUser(friendName), sys = '你是'+u.n+'，性格：'+u.persona+'。你正在和网友'+CU+'私聊。请简短回复（30字以内），像真人聊天。';
+    var reply = await callAI(sys, text, 100);
+    if(!reply){ var pool = ['嗯嗯，我看到了。','哈哈哈哈确实。','这个我得想想。','你说得对。','稍等，我忙完回你。']; reply = pool[Math.floor(Math.random()*pool.length)]; }
+    if(!MSGS[friendName]) MSGS[friendName] = [];
+    MSGS[friendName].push({from:friendName, text:reply, time:Date.now()}); saveAll();
+    if(curChat===friendName) renderMsg(); else { UNREAD[friendName] = (UNREAD[friendName]||0) + 1; saveAll(); updateUnreadDot(); }
+  }, 1200 + Math.random()*1500);
+};
+
+$('chatText').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); $('chatSend').click(); } });
+$('addGo').onclick = function(){
+  var name = $('addName').value.trim(); if(!name) return;
+  if(name===CU){ showToast('不能添加自己', true); return; }
+  if(isFriend(name)){ showToast('已经是好友了', true); return; }
+  var u = getUser(name); FRIENDS.push({name:name, ini:u.i, bg:u.bg, bio:u.bio}); saveAll(); $('addName').value = ''; showToast('已添加 '+name); renderMsg();
+};
+$('mtabs').onclick = function(e){
+  var t = e.target.closest('.mtab'); if(!t) return;
+  msgTab = t.getAttribute('data-t'); this.querySelectorAll('.mtab').forEach(function(x){ x.classList.toggle('on', x===t); }); renderMsg();
+};
+
+function updateUnreadDot(){
+  var total = 0; for(var k in UNREAD) total += UNREAD[k] || 0;
+  var dot = $('unreadDot'); if(total>0){ dot.textContent = total; dot.classList.add('on'); } else dot.classList.remove('on');
+  var bn = $('bnDot'); if(bn){ if(total>0){ bn.textContent = total; bn.classList.add('on'); } else bn.classList.remove('on'); }
+}
+
+/* ===================== 登录与发帖 ===================== */
+function openAuth(){ $('auth').classList.add('on'); $('authName').focus(); }
+function closeAuth(){ $('auth').classList.remove('on'); }
+$('authCancel').onclick = closeAuth;
+$('authGo').onclick = function(){
+  var name = $('authName').value.trim(); if(!name){ showToast('请输入用户名', true); return; }
+  CU = name; localStorage.setItem('forum_user', CU); closeAuth(); renderUserArea(); showToast('欢迎，'+CU);
+};
+function renderUserArea(){
+  var area = $('userArea');
+  if(CU){
+    var u = getUser(CU);
+    area.innerHTML = '<span class="av" style="background:'+u.bg+'">'+esc(u.i)+'</span><span class="link" id="logoutBtn">退出</span>';
+    $('logoutBtn').onclick = function(){ CU = ''; localStorage.removeItem('forum_user'); renderUserArea(); showToast('已退出'); };
+  }else{
+    area.innerHTML = '<span class="link" id="loginBtn">登录</span>';
+    $('loginBtn').onclick = openAuth;
+  }
+}
+
+function openComposer(editId){
+  if(!CU){ openAuth(); return; }
+  editingPostId = editId || null;
+  $('composerTitle').textContent = editId ? '编辑帖子' : '发布新帖';
+  if(editId){
+    var p = byId(editId);
+    if(p){ $('compTitle').value = p.title; $('compCat').value = p.cat; $('compBody').value = p.body.join('\n'); }
+  }else{ $('compTitle').value = ''; $('compBody').value = ''; $('compCat').value = 'tech'; }
+  $('compImgPreview').innerHTML = ''; $('composer').classList.add('on');
+}
+function closeComposer(){ $('composer').classList.remove('on'); editingPostId = null; }
+$('compCancel').onclick = closeComposer;
+
+var pendingImages = [];
+$('compImg').onchange = function(e){
+  var file = e.target.files[0]; if(!file) return;
+  compressAndGetBase64(file, function(base64){
+    pendingImages.push(base64);
+    var img = document.createElement('img'); img.src = base64; img.className = 'post-img'; img.onclick = function(){ openImgPreview(base64); };
+    $('compImgPreview').appendChild(img);
+  });
+  e.target.value = '';
+};
+
+$('compGo').onclick = function(){
+  var title = $('compTitle').value.trim(), body = $('compBody').value.trim(), cat = $('compCat').value;
+  if(!title){ showToast('请输入标题', true); return; }
+  if(!body){ showToast('请输入内容', true); return; }
+  var me = getUser(CU), bodyArr = body.split('\n').filter(function(x){ return x.trim(); });
+
+  if(editingPostId){
+    var p = byId(editingPostId);
+    if(p){ p.title = title; p.body = bodyArr; p.cat = cat; if(pendingImages.length) p.images = (p.images||[]).concat(pendingImages); saveAll(); applyFilterAndRender(); if(cur===p.id) openPost(p.id); showToast('已更新'); }
+  }else{
+    var newPost = {id: Date.now(), cat: cat, tag: '日常', time: Date.now(), title: title, author: CU, ini: me.i, bg: me.bg, views: 1, likes: 0, body: bodyArr, cmts: []};
+    if(pendingImages.length) newPost.images = pendingImages.slice();
+    POSTS.unshift(newPost); saveAll(); applyFilterAndRender();
+    showToast('发布成功！AI 网友们马上就来 👀');
+    triggerAutoComments(newPost.id, true);
+  }
+  pendingImages = []; closeComposer();
+};
+
+function delPost(id){
+  if(!confirm('确定删除这个帖子吗？')) return;
+  var idx = -1; for(var i=0;i<POSTS.length;i++) if(POSTS[i].id===id){ idx=i; break; }
+  if(idx>=0) POSTS.splice(idx,1);
+  saveAll(); if(cur===id){ $('detail').classList.remove('on'); cur=null; } applyFilterAndRender(); showToast('已删除');
+}
+
+/* ===================== 配置与启动 ===================== */
+$('aiSetupBtn').onclick = function(){ $('aiKey').value = AI_KEY; $('aiUrl').value = AI_URL; $('aiModel').value = AI_MODEL; $('aiSetup').classList.add('on'); };
+$('aiCancel').onclick = function(){ $('aiSetup').classList.remove('on'); };
+$('aiSave').onclick = function(){
+  AI_KEY = $('aiKey').value.trim(); AI_URL = $('aiUrl').value.trim() || 'https://api.deepseek.com/chat/completions'; AI_MODEL = $('aiModel').value.trim() || 'deepseek-chat';
+  localStorage.setItem('forum_ai_key', AI_KEY); localStorage.setItem('forum_ai_url', AI_URL); localStorage.setItem('forum_ai_model', AI_MODEL);
+  $('aiSetup').classList.remove('on'); showToast(AI_KEY ? 'AI 配置已保存' : '已清空 AI 配置');
+};
+$('testAiBtn').onclick = async function(){
+  var key = $('aiKey').value.trim(), url = $('aiUrl').value.trim() || 'https://api.deepseek.com/chat/completions', model = $('aiModel').value.trim() || 'deepseek-chat';
+  if(!key){ showToast('请先填写 API Key', true); return; }
+  var btn = this, oldText = btn.textContent; btn.textContent = '测试中…'; btn.disabled = true;
+  try{
+    var res = await fetchWithTimeout(url, { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+key}, body: JSON.stringify({model: model, messages:[{role:'user', content:'回复"OK"两个字'}], max_tokens: 10}) }, 20000);
+    if(!res.ok){ throw new Error('HTTP '+res.status); }
+    var data = await res.json();
+    var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if(content) showToast('✅ 连接成功！AI 回复：'+content.slice(0,20)); else showToast('⚠️ 接口通了但返回为空', true);
+  }catch(e){
+    var msg = e.message || String(e);
+    if(msg.indexOf('Failed to fetch')>=0) showToast('❌ 网络/CORS 错误，请用电脑或部署到 https', true);
+    else if(msg.indexOf('abort')>=0) showToast('❌ 请求超时', true);
+    else showToast('❌ '+msg.slice(0,80), true);
+  }finally{ btn.textContent = oldText; btn.disabled = false; }
+};
+
+$('newPost').onclick = function(){ openComposer(); };
+$('msgBtn').onclick = openMsg;
+$('noticeBtn').onclick = openNoticePanel;
+$('noticeClose').onclick = closeNoticePanel;
+$('themeBtn').onclick = function(){ document.body.classList.toggle('dark'); localStorage.setItem('forum_theme', document.body.classList.contains('dark') ? 'dark' : 'light'); this.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙'; };
+$('resetBtn').onclick = function(){ if(!confirm('确定重置所有数据吗？')) return; localStorage.clear(); location.reload(); };
+
+$('searchBtn').onclick = function(){ curSearch = $('searchInput').value; applyFilterAndRender(); };
+$('searchInput').addEventListener('keydown', function(e){ if(e.key==='Enter'){ curSearch = this.value; applyFilterAndRender(); } });
+$('tabs').onclick = function(e){
+  var t = e.target.closest('.tab'); if(!t) return;
+  curFilter = t.getAttribute('data-f'); this.querySelectorAll('.tab').forEach(function(x){ x.classList.toggle('on', x===t); }); applyFilterAndRender();
+};
+$('sortNew').onclick = function(){ localStorage.setItem('sortMode','new'); applyFilterAndRender(); };
+$('sortHot').onclick = function(){ localStorage.setItem('sortMode','hot'); applyFilterAndRender(); };
+document.querySelector('.bottom-nav').onclick = function(e){
+  var b = e.target.closest('button[data-nav]'); if(!b) return;
+  var nav = b.getAttribute('data-nav'); this.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x===b); });
+  if(nav==='home'){ window.scrollTo({top:0, behavior:'smooth'}); }
+  else if(nav==='post'){ openComposer(); }
+  else if(nav==='msg'){ openMsg(); }
+  else if(nav==='me'){ if(CU) openUserCard(CU); else openAuth(); }
+};
+
+renderUserArea();
+updateUnreadDot();
+updateNoticeDot();
+applyFilterAndRender();
+startAutoPost();
+if(!CU){ setTimeout(function(){ if(!CU) showToast('👋 点右上角「登录」开始发帖'); }, 2000); }
+</script>
+</body>
+</html>
