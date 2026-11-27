@@ -332,9 +332,10 @@ input,textarea{font-family:inherit;color:inherit}
     <button id="msgClose">✕</button>
   </div>
   <div class="mtabs" id="mtabs">
-    <button class="mtab on" data-t="friends">好友</button>
-    <button class="mtab" data-t="discover">发现</button>
-  </div>
+  <button class="mtab on" data-t="friends">关注</button>
+  <button class="mtab" data-t="followers">粉丝</button>
+  <button class="mtab" data-t="discover">发现</button>
+</div>
   <div class="add-bar" id="addBar">
     <input id="addName" placeholder="输入用户名添加" maxlength="12">
     <button class="btn" id="addGo">添加</button>
@@ -495,6 +496,7 @@ function listenMyFollows(){
 }
 
 /* 监听「谁关注了我」 */
+var _lastFollowers = [];
 function listenFollowers(){
   if(!firebaseReady || !CU) return;
   db.ref('follows').on('value', function(snap){
@@ -506,7 +508,18 @@ function listenFollowers(){
         if(f.key === CU) arr.push(uname);
       });
     });
+    // ↓↓↓ 新粉丝通知，就加在这里
+    if(_lastFollowers.length){
+      arr.forEach(function(n){
+        if(_lastFollowers.indexOf(n) < 0){
+          addNotice('follow', null, n + ' 关注了你');
+        }
+      });
+    }
+    _lastFollowers = arr.slice();
+    // ↑↑↑ 新粉丝通知结束
     FOLLOWERS = arr;
+    if($('msgPanel').classList.contains('on') && msgTab==='followers') renderMsg();
   });
 }
 
@@ -1337,6 +1350,38 @@ function renderMsg(){
   $('addBar').style.display = msgTab==='discover' ? 'flex' : 'none';
   $('chatInput').style.display = 'none';
   $('msgTitle').textContent = '消息';
+
+  if(msgTab==='followers'){
+    if(!FOLLOWERS.length){ body.innerHTML = '<div class="msg-empty">还没有人关注你</div>'; return; }
+    var h = '';
+    for(var i=0;i<FOLLOWERS.length;i++){
+      var name = FOLLOWERS[i];
+      var u = getUser(name);
+      var isBack = isFriend(name);
+      h += '<div class="friend" data-follower="'+esc(name)+'">';
+      h += '<span class="mav" style="background:'+u.bg+';width:36px;height:36px;font-size:.85rem">'+esc(u.i)+'</span>';
+      h += '<div class="info"><div class="n" data-uname="'+esc(name)+'">'+esc(name)+'</div><div class="lm">'+esc(u.bio||'')+'</div></div>';
+      if(isBack) h += '<span class="link" style="font-size:.72rem">互相关注</span>';
+      else h += '<button class="btn" style="height:28px;font-size:.75rem" data-back="'+esc(name)+'">回关</button>';
+      h += '</div>';
+    }
+    body.innerHTML = h;
+    body.querySelectorAll('.friend').forEach(function(el){
+      el.onclick = function(e){
+        if(e.target.closest('[data-uname]')){ openUserCard(e.target.closest('[data-uname]').getAttribute('data-uname')); return; }
+        var backBtn = e.target.closest('[data-back]');
+        if(backBtn){
+          var nm = backBtn.getAttribute('data-back');
+          cloudAddFriend(nm).then(function(){
+            showToast('已回关 '+nm);
+            renderMsg();
+          }).catch(function(){ showToast('操作失败', true); });
+          return;
+        }
+      };
+    });
+    return;
+  }
 
   if(msgTab==='friends'){
     if(!FRIENDS.length){ body.innerHTML = '<div class="msg-empty">还没有关注的人，去「发现」看看吧</div>'; return; }
