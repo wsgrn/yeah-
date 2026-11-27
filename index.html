@@ -412,6 +412,9 @@ var _scrollY = 0;
 var FRIENDS=JSON.parse(localStorage.getItem('forum_friends')||'[]');
 var MSGS=JSON.parse(localStorage.getItem('forum_msgs')||'{}');
 var UNREAD=JSON.parse(localStorage.getItem('forum_unread')||'{}');
+var FOLLOWERS=[];          // 谁关注了我
+var _friendListeners={};   // 已监听的会话，避免重复
+var _msgListeners={};
 var NOTICES=JSON.parse(localStorage.getItem('forum_notices')||'[]');
 var curChat=null, msgTab='friends';
 var AI_KEY=localStorage.getItem('forum_ai_key')||'';
@@ -453,6 +456,101 @@ function savePersonal(){
   }
 }
 
+/* ========== 云端好友 & 私信 ========== */
+function convId(a, b){
+  return [a, b].sort().join('__');
+}
+
+function cloudAddFriend(name){
+  if(!firebaseReady || !CU) return Promise.reject();
+  return db.ref('follows/' + CU + '/' + name).set(true);
+}
+function cloudRemoveFriend(name){
+  if(!firebaseReady || !CU) return Promise.reject();
+  return db.ref('follows/' + CU + '/' + name).remove();
+}
+function cloudSendMsg(to, text){
+  if(!firebaseReady || !CU) return Promise.reject();
+  var cid = convId(CU, to);
+  return db.ref('messages/' + cid).push({
+    from: CU, to: to, text: text, time: Date.now()
+  });
+}
+
+/* 监听「我关注的人」 */
+function listenMyFollows(){
+  if(!firebaseReady || !CU) return;
+  db.ref('follows/' + CU).on('value', function(snap){
+    var arr = [];
+    snap.forEach(function(c){
+      var name = c.key;
+      var u = getUser(name);
+      arr.push({name:name, ini:u.i, bg:u.bg, bio:u.bio});
+    });
+    FRIENDS = arr;
+    savePersonal();
+    if($('msgPanel').classList.contains('on')) renderMsg();
+    if(cur){ var p = byId(cur); if(p) renderFriendBar(p); }
+  });
+}
+
+/* 监听「谁关注了我」 */
+function listenFollowers(){
+  if(!firebaseReady || !CU) return;
+  db.ref('follows').on('value', function(snap){
+    var arr = [];
+    snap.forEach(function(userSnap){
+      var uname = userSnap.key;
+      if(uname === CU) return;
+      userSnap.forEach(function(f){
+        if(f.key === CU) arr.push(uname);
+      });
+    });
+    FOLLOWERS = arr;
+  });
+}
+
+/* 监听某个会话的消息 */
+function listenChat(otherName){
+  if(!firebaseReady || !CU) return;
+  var cid = convId(CU, otherName);
+  if(_msgListeners[cid]) return;
+  _msgListeners[cid] = true;
+  db.ref('messages/' + cid).on('value', function(snap){
+    var arr = [];
+    snap.forEach(function(c){
+      var m = c.val();
+      m._key = c.key;
+      arr.push(m);
+    });
+    arr.sort(function(a,b){ return (a.time||0)-(b.time||0); });
+    MSGS[otherName] = arr;
+    savePersonal();
+    if(curChat === otherName) renderMsg();
+    else {
+      var unread = arr.filter(function(m){ return m.from !== CU && !m._read; }).length;
+      if(unread > 0){
+        UNREAD[otherName] = unread;
+        savePersonal();
+        updateUnreadDot();
+      }
+    }
+  });
+}
+
+/* 标记会话已读 */
+function markChatRead(otherName){
+  if(!firebaseReady || !CU) return;
+  var cid = convId(CU, otherName);
+  db.ref('messages/' + cid).once('value', function(snap){
+    snap.forEach(function(c){
+      var m = c.val();
+      if(m.from !== CU && !m._read){
+        db.ref('messages/' + cid + '/' + c.key + '/_read').set(true);
+      }
+    });
+  });
+}
 function formatTime(ts){
   if(!ts) return '刚刚';
   var diff = Date.now() - ts;
@@ -1017,7 +1115,6 @@ function renderFriendBar(p){
     };
   }
 }
-
 function renderCmts(p){
   var box = $('dCmts');
   var cmtsArr = cmtsToArray(p.cmts);
@@ -1134,21 +1231,22 @@ function openUserCard(name){
   if(name === CU){
     actions.innerHTML = '<button class="btn ghost" id="ucFavBtn">我的收藏</button>';
     $('ucFavBtn').onclick = function(){ closeUserCard(); openFavPanel(); };
-  }else if(isFriend(name)){
+    }else if(isFriend(name)){
     actions.innerHTML = '<button class="btn" id="ucChatBtn">发私信</button>';
     $('ucChatBtn').onclick = function(){ closeUserCard(); openMsg(); openChat(name); };
   }else{
-    actions.innerHTML = '<button class="btn" id="ucAddBtn">+ 加好友</button>';
+    actions.innerHTML = '<button class="btn" id="ucAddBtn">+ 关注</button>';
     $('ucAddBtn').onclick = function(){
       if(!CU){ closeUserCard(); openAuth(); return; }
       if(isFriend(name)) return;
-      FRIENDS.push({name:name, ini:u.i, bg:u.bg, bio:u.bio});
-      savePersonal();
-      showToast('已添加 '+name+' 为好友');
-      openUserCard(name);
+      cloudAddFriend(name).then(function(){
+        showToast('已关注 '+name);
+        openUserCard(name);
+      }).catch(function(){
+        showToast('关注失败，检查网络', true);
+      });
     };
-  }
-
+  }  
   var ph = '';
   if(!posts.length) ph = '<div style="text-align:center;color:var(--muted);font-size:.8rem;padding:20px">还没有发过帖子</div>';
   else{
@@ -1241,7 +1339,7 @@ function renderMsg(){
   $('msgTitle').textContent = '消息';
 
   if(msgTab==='friends'){
-    if(!FRIENDS.length){ body.innerHTML = '<div class="msg-empty">还没有好友，去「发现」添加吧</div>'; return; }
+    if(!FRIENDS.length){ body.innerHTML = '<div class="msg-empty">还没有关注的人，去「发现」看看吧</div>'; return; }
     var h = '';
     for(var i=0;i<FRIENDS.length;i++){
       var f = FRIENDS[i];
@@ -1272,16 +1370,17 @@ function renderMsg(){
       h += '<button class="btn" style="height:28px;font-size:.75rem">+ 添加</button>';
       h += '</div>';
     }
-    body.innerHTML = h || '<div class="msg-empty">没有可添加的用户</div>';
-    body.querySelectorAll('[data-addname]').forEach(function(el){
+  body.innerHTML = h || '<div class="msg-empty">没有可添加的用户</div>';
+        body.querySelectorAll('[data-addname]').forEach(function(el){
       el.onclick = function(){
         var name = el.getAttribute('data-addname');
         if(isFriend(name)) return;
-        var u = getUser(name);
-        FRIENDS.push({name:name, ini:u.i, bg:u.bg, bio:u.bio});
-        savePersonal();
-        showToast('已添加 '+name);
-        renderMsg();
+        cloudAddFriend(name).then(function(){
+          showToast('已关注 '+name);
+          renderMsg();
+        }).catch(function(){
+          showToast('关注失败，检查网络', true);
+        });
       };
     });
   }
@@ -1292,6 +1391,8 @@ function openChat(name){
   UNREAD[name] = 0;
   savePersonal();
   updateUnreadDot();
+  listenChat(name);
+  markChatRead(name);
   renderMsg();
 }
 
@@ -1299,31 +1400,29 @@ $('chatSend').onclick = function(){
   var input = $('chatText');
   var text = input.value.trim();
   if(!text || !curChat) return;
-  if(!MSGS[curChat]) MSGS[curChat] = [];
-  MSGS[curChat].push({from:CU, text:text, time:Date.now()});
-  input.value = '';
-  savePersonal();
-  renderMsg();
+  if(!CU){ openAuth(); return; }
 
   var friendName = curChat;
-  setTimeout(async function(){
-    var u = getUser(friendName);
-    var sys = '你是'+u.n+'，性格：'+u.persona+'。你正在和网友'+CU+'私聊。请简短回复（30字以内），像真人聊天。';
-    var reply = await callAI(sys, text, 100);
-    if(!reply){
-      var pool = ['嗯嗯，我看到了。','哈哈哈哈确实。','这个我得想想。','你说得对。','稍等，我忙完回你。'];
-      reply = pool[Math.floor(Math.random()*pool.length)];
-    }
-    if(!MSGS[friendName]) MSGS[friendName] = [];
-    MSGS[friendName].push({from:friendName, text:reply, time:Date.now()});
-    savePersonal();
-    if(curChat===friendName) renderMsg();
-    else {
-      UNREAD[friendName] = (UNREAD[friendName]||0) + 1;
-      savePersonal();
-      updateUnreadDot();
-    }
-  }, 1200 + Math.random()*1500);
+  input.value = '';
+
+  cloudSendMsg(friendName, text).catch(function(){
+    showToast('发送失败，检查网络', true);
+  });
+
+  // 如果对方是 AI 机器人，让 AI 回一句（也写进云端）
+  var isBot = BOTS.some(function(b){ return b.n === friendName; });
+  if(isBot){
+    setTimeout(async function(){
+      var u = getUser(friendName);
+      var sys = '你是'+u.n+'，性格：'+u.persona+'。你正在和网友'+CU+'私聊。请简短回复（30字以内），像真人聊天。';
+      var reply = await callAI(sys, text, 100);
+      if(!reply){
+        var pool = ['嗯嗯，我看到了。','哈哈哈哈确实。','这个我得想想。','你说得对。','稍等，我忙完回你。'];
+        reply = pool[Math.floor(Math.random()*pool.length)];
+      }
+      cloudSendMsg(friendName, reply);
+    }, 1200 + Math.random()*1500);
+  }
 };
 
 $('chatText').addEventListener('keydown', function(e){
@@ -1333,16 +1432,16 @@ $('chatText').addEventListener('keydown', function(e){
 $('addGo').onclick = function(){
   var name = $('addName').value.trim();
   if(!name) return;
-  if(name===CU){ showToast('不能添加自己', true); return; }
-  if(isFriend(name)){ showToast('已经是好友了', true); return; }
-  var u = getUser(name);
-  FRIENDS.push({name:name, ini:u.i, bg:u.bg, bio:u.bio});
-  savePersonal();
-  $('addName').value = '';
-  showToast('已添加 '+name);
-  renderMsg();
+  if(name===CU){ showToast('不能关注自己', true); return; }
+  if(isFriend(name)){ showToast('已经关注了', true); return; }
+  cloudAddFriend(name).then(function(){
+    $('addName').value = '';
+    showToast('已关注 '+name);
+    renderMsg();
+  }).catch(function(){
+    showToast('关注失败，检查网络', true);
+  });
 };
-
 $('mtabs').onclick = function(e){
   var t = e.target.closest('.mtab');
   if(!t) return;
@@ -1371,6 +1470,8 @@ $('authGo').onclick = function(){
   localStorage.setItem('forum_user', CU);
   closeAuth();
   renderUserArea();
+  listenMyFollows();
+  listenFollowers();
   showToast('欢迎，'+CU);
 };
 
