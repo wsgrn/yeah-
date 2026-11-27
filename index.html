@@ -463,12 +463,27 @@ function convId(a, b){
 }
 
 function cloudAddFriend(name){
-  if(!firebaseReady || !CU) return Promise.reject();
-  return db.ref('follows/' + CU + '/' + name).set(true);
+  if(!firebaseReady || !CU){
+    console.warn('[AddFriend] 无法关注：firebaseReady=' + firebaseReady + ', CU=' + CU);
+    return Promise.reject(new Error('未登录或云端未连接'));
+  }
+  console.log('[AddFriend] 写入 follows/' + CU + '/' + name);
+  return db.ref('follows/' + CU + '/' + name).set(true)
+    .then(function(){
+      console.log('[AddFriend] 写入成功');
+    })
+    .catch(function(err){
+      console.error('[AddFriend] 写入失败:', err.message);
+      throw err;
+    });
 }
 function cloudRemoveFriend(name){
-  if(!firebaseReady || !CU) return Promise.reject();
-  return db.ref('follows/' + CU + '/' + name).remove();
+  if(!firebaseReady || !CU) return Promise.reject(new Error('未登录或云端未连接'));
+  return db.ref('follows/' + CU + '/' + name).remove()
+    .catch(function(err){
+      console.error('[RemoveFriend] 失败:', err.message);
+      throw err;
+    });
 }
 function cloudSendMsg(to, text){
   if(!firebaseReady || !CU) return Promise.reject();
@@ -479,27 +494,58 @@ function cloudSendMsg(to, text){
 }
 
 /* 监听「我关注的人」 */
+var _myFollowsListenerRef = null;   // 新增
+
 function listenMyFollows(){
-  if(!firebaseReady || !CU) return;
-  db.ref('follows/' + CU).on('value', function(snap){
+  if(!firebaseReady || !CU){
+    console.warn('[MyFollows] 跳过监听：firebaseReady=' + firebaseReady + ', CU=' + CU);
+    return;
+  }
+
+  // 新增：先解绑旧监听
+  if(_myFollowsListenerRef){
+    _myFollowsListenerRef.off();
+    _myFollowsListenerRef = null;
+  }
+
+  _myFollowsListenerRef = db.ref('follows/' + CU);
+  _myFollowsListenerRef.on('value', function(snap){
     var arr = [];
     snap.forEach(function(c){
       var name = c.key;
       var u = getUser(name);
       arr.push({name:name, ini:u.i, bg:u.bg, bio:u.bio});
     });
+
+    console.log('[MyFollows] 我关注的人:', arr.map(function(x){ return x.name; }));
+
     FRIENDS = arr;
     savePersonal();
     if($('msgPanel').classList.contains('on')) renderMsg();
     if(cur){ var p = byId(cur); if(p) renderFriendBar(p); }
+  }, function(err){
+    console.error('[MyFollows] 监听失败:', err.message);
   });
 }
 
 /* 监听「谁关注了我」 */
 var _lastFollowers = [];
+var _followersListenerRef = null;   // 新增：记录监听引用，防止重复绑定
+
 function listenFollowers(){
-  if(!firebaseReady || !CU) return;
-  db.ref('follows').on('value', function(snap){
+  if(!firebaseReady || !CU){
+    console.warn('[Followers] 跳过监听：firebaseReady=' + firebaseReady + ', CU=' + CU);
+    return;
+  }
+
+  // 新增：先解绑旧监听，避免切换账号后重复触发
+  if(_followersListenerRef){
+    _followersListenerRef.off();
+    _followersListenerRef = null;
+  }
+
+  _followersListenerRef = db.ref('follows');
+  _followersListenerRef.on('value', function(snap){
     var arr = [];
     snap.forEach(function(userSnap){
       var uname = userSnap.key;
@@ -508,7 +554,10 @@ function listenFollowers(){
         if(f.key === CU) arr.push(uname);
       });
     });
-    // ↓↓↓ 新粉丝通知，就加在这里
+
+    console.log('[Followers] 当前关注我的人:', arr);
+
+    // 新粉丝通知
     if(_lastFollowers.length){
       arr.forEach(function(n){
         if(_lastFollowers.indexOf(n) < 0){
@@ -517,9 +566,13 @@ function listenFollowers(){
       });
     }
     _lastFollowers = arr.slice();
-    // ↑↑↑ 新粉丝通知结束
     FOLLOWERS = arr;
+
+    // 新增：如果粉丝面板开着，实时刷新
     if($('msgPanel').classList.contains('on') && msgTab==='followers') renderMsg();
+  }, function(err){
+    console.error('[Followers] 监听失败:', err.message);
+    showToast('粉丝列表加载失败：' + err.message, true);
   });
 }
 
@@ -1352,7 +1405,12 @@ function renderMsg(){
   $('msgTitle').textContent = '消息';
 
   if(msgTab==='followers'){
-    if(!FOLLOWERS.length){ body.innerHTML = '<div class="msg-empty">还没有人关注你</div>'; return; }
+    if(!FOLLOWERS.length){
+      body.innerHTML = '<div class="msg-empty">还没有人关注你<br><button class="btn" style="margin-top:10px;height:30px;font-size:.78rem" id="refreshFollowers">刷新</button></div>';
+      var rf = $('refreshFollowers');
+      if(rf) rf.onclick = function(){ listenFollowers(); showToast('正在刷新…'); };
+      return;
+    }
     var h = '';
     for(var i=0;i<FOLLOWERS.length;i++){
       var name = FOLLOWERS[i];
@@ -1515,8 +1573,23 @@ $('authGo').onclick = function(){
   localStorage.setItem('forum_user', CU);
   closeAuth();
   renderUserArea();
-  listenMyFollows();
-  listenFollowers();
+
+  // ↓↓↓ 改成：Firebase 没就绪时延迟重试
+  if(firebaseReady){
+    listenMyFollows();
+    listenFollowers();
+  } else {
+    setTimeout(function(){
+      if(firebaseReady){
+        listenMyFollows();
+        listenFollowers();
+      } else {
+        showToast('云端未连接，关注功能不可用', true);
+      }
+    }, 1000);
+  }
+  // ↑↑↑ 改完
+
   showToast('欢迎，'+CU);
 };
 
@@ -1766,6 +1839,14 @@ function boot(){
     updateUnreadDot();
     updateNoticeDot();
     startCloudListener();
+
+    // ↓↓↓ 新增：已登录用户，刷新后自动重建关注/粉丝监听
+    if(CU && firebaseReady){
+      listenMyFollows();
+      listenFollowers();
+    }
+    // ↑↑↑ 新增结束
+
     if(!CU){
       setTimeout(function(){
         if(!CU) showToast('👋 点右上角「登录」开始发帖');
@@ -1773,7 +1854,6 @@ function boot(){
     }
   } catch (e) {
     console.error('[Boot] 初始化失败:', e);
-    // 兜底：至少把默认帖子显示出来
     try {
       POSTS = defaultPosts.slice();
       dataReady = true;
