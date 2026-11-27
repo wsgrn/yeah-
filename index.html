@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>微光论坛 - 完整修复版</title>
+<title>微光论坛 - 云端版</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -81,7 +81,6 @@ input,textarea{font-family:inherit;color:inherit}
 .cmt .tx{color:var(--text);line-height:1.65;margin-top:3px;word-break:break-word}
 .mention{color:var(--primary);font-weight:700;cursor:pointer;background:rgba(79,110,247,.08);padding:0 3px;border-radius:4px}
 .mention:hover{text-decoration:underline;background:rgba(79,110,247,.15)}
-.cadd{font-size:.68rem;color:var(--primary);font-weight:700;margin-left:6px;cursor:pointer}
 .creply{font-size:.68rem;color:var(--muted);font-weight:700;margin-left:6px;cursor:pointer}
 .creply:hover{color:var(--primary)}
 .toolbar{display:flex;gap:6px;padding-bottom:6px;flex-wrap:wrap}
@@ -248,7 +247,7 @@ input,textarea{font-family:inherit;color:inherit}
   <div class="authbox">
     <h3>登录</h3>
     <input id="authName" placeholder="用户名" maxlength="12">
-    <input id="authPass" type="password" placeholder="密码">
+    <input id="authPass" type="password" placeholder="密码（可留空）">
     <button class="btn" id="authGo">登录</button>
     <div class="cancel" id="authCancel">取消</div>
   </div>
@@ -345,7 +344,41 @@ input,textarea{font-family:inherit;color:inherit}
   </div>
 </div>
 
+<!-- ============ Firebase SDK ============ -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <script>
+/* ===================== Firebase 初始化（安全版） ===================== */
+const firebaseConfig = {
+  databaseURL: https://weiguang-forum-default-rtdb.firebaseio.com/  // ← 改成你自己的
+};
+
+let db = null;
+let firebaseReady = false;
+
+function initFirebase(){
+  // 1. SDK 没加载
+  if (typeof firebase === 'undefined') {
+    console.warn('[Firebase] SDK 未加载，使用本地模式');
+    return;
+  }
+  // 2. URL 没配
+  if (!firebaseConfig.databaseURL || firebaseConfig.databaseURL.indexOf('YOUR_FIREBASE_URL_HERE') >= 0) {
+    console.warn('[Firebase] 未配置 databaseURL，使用本地模式');
+    return;
+  }
+  // 3. 正常初始化
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    firebaseReady = true;
+    console.log('[Firebase] 初始化成功');
+  } catch (e) {
+    console.error('[Firebase] 初始化失败:', e);
+  }
+}
+
 /* ===================== 数据 ===================== */
 var BOTS=[
 {n:'管理员',i:'管',bg:'#4f6ef7',bio:'微光论坛的最高裁决者。',cat:'notice', persona:'严肃、官方、话少。'},
@@ -359,7 +392,7 @@ var BOTS=[
 {n:'青柠',i:'青',bg:'#10b981',bio:'正在学习 TypeScript。',cat:'qna', persona:'萌新、经常问小白问题、容易崇拜大佬。'}
 ];
 
-var DEFAULT_IDS = {999:1, 101:1, 1:1};
+/* 默认帖子：只在前端展示，不写库 */
 var defaultPosts=[
 {id:999,cat:'notice',tag:'公告',time:Date.now()-86400000*2,title:'【必读】微光论坛社区秩序与发言规则',author:'管理员',ini:'管',bg:'#4f6ef7',views:9999,likes:999,isTop:true,body:['欢迎来到微光论坛。为了维护良好的交流环境，请大家遵守以下规则：','1. 禁止发布违法违规内容。','2. 友善交流，禁止人身攻击。'], cmts:[]},
 {id:101,cat:'horror',tag:'求助',time:Date.now()-3600000*2,title:'【求助】租的房子每天凌晨3点，楼上准时传来弹珠掉地上的声音',author:'南风',ini:'南',bg:'#b91c1c',views:3452,likes:128,body:['我刚搬来这个老小区一个月，住顶楼。','但是每天凌晨3点左右，天花板上就会传来那种玻璃弹珠掉在地上，然后一路弹跳滚远的声音。','我上去看过，天台的门是锁死的，根本没人上去过。','我现在整个人都不好了，有没有懂的老哥？'],
@@ -367,12 +400,11 @@ cmts:[{name:'老K',ini:'老',bg:'#64748b',time:Date.now()-3600000*1.5,text:'别�
 {id:1,cat:'tech',tag:'技术',time:Date.now()-3600000*3,title:'有没有人一起研究一下 WebGPU 的实际落地场景？',author:'阿泽',ini:'阿',bg:'#4f6ef7',views:342,likes:24,body:['最近在做一个数据可视化项目，用 Canvas 2D 性能遇到瓶颈。','想试试 WebGPU 但不知道生态成熟度如何。'],cmts:[]}
 ];
 
-var savedPosts = JSON.parse(localStorage.getItem('forum_posts') || '[]');
-var POSTS = defaultPosts.slice();
-var existIds = {};
-for (var i=0;i<POSTS.length;i++) existIds[POSTS[i].id]=true;
-for (var i=0;i<savedPosts.length;i++){ if(!existIds[savedPosts[i].id]) POSTS.push(savedPosts[i]); }
+/* 云端帖子（从 Firebase 拉取） */
+var POSTS = [];
+var dataReady = false;
 
+/* 个人数据（localStorage） */
 var cur=null, dLiked=false, CU=localStorage.getItem('forum_user')||'';
 var _scrollY = 0;
 var FRIENDS=JSON.parse(localStorage.getItem('forum_friends')||'[]');
@@ -406,18 +438,19 @@ function toggleFav(id){
   localStorage.setItem('forum_favs', JSON.stringify(FAVS));
   return i < 0;
 }
-function saveAll(){
-  var userPosts = POSTS.filter(function(p){ return !DEFAULT_IDS[p.id]; });
+
+/* 只保存个人数据到 localStorage（帖子走云端） */
+function savePersonal(){
   try {
-    localStorage.setItem('forum_posts', JSON.stringify(userPosts));
     localStorage.setItem('forum_friends', JSON.stringify(FRIENDS));
     localStorage.setItem('forum_msgs', JSON.stringify(MSGS));
     localStorage.setItem('forum_unread', JSON.stringify(UNREAD));
     localStorage.setItem('forum_notices', JSON.stringify(NOTICES));
   } catch (e) {
-    showToast('⚠️ 本地存储已满，部分数据可能丢失！', true);
+    showToast('⚠️ 本地存储已满', true);
   }
 }
+
 function formatTime(ts){
   if(!ts) return '刚刚';
   var diff = Date.now() - ts;
@@ -431,12 +464,24 @@ function getUser(name){
   for(var i=0;i<BOTS.length;i++)if(BOTS[i].n===name)return BOTS[i];
   for(var i=0;i<POSTS.length;i++){
     if(POSTS[i].author===name)return {n:name,i:POSTS[i].ini,bg:POSTS[i].bg,bio:'社区活跃用户',persona:'普通网友'};
-    for(var j=0;j<POSTS[i].cmts.length;j++){
-      var c=POSTS[i].cmts[j];
+    var cmts = cmtsToArray(POSTS[i].cmts);
+    for(var j=0;j<cmts.length;j++){
+      var c=cmts[j];
       if(c.name===name)return {n:name,i:c.ini,bg:c.bg,bio:'社区活跃用户',persona:'普通网友'};
     }
   }
   return {n:name,i:name.charAt(0),bg:'#4f6ef7',bio:'刚加入的新人',persona:'普通网友'};
+}
+
+/* Firebase 的 cmts 是对象，转成数组 */
+function cmtsToArray(cmts){
+  if(!cmts) return [];
+  if(Array.isArray(cmts)) return cmts;
+  return Object.keys(cmts).map(function(k){
+    var c = cmts[k];
+    c._ckey = k;
+    return c;
+  });
 }
 
 function showToast(msg, isErr){
@@ -449,10 +494,94 @@ function showToast(msg, isErr){
   t._timer = setTimeout(function(){ t.classList.remove('on'); }, 2600);
 }
 
+/* ===================== 云端数据操作 ===================== */
+function cloudAddPost(post){
+  if(!firebaseReady) { showToast('未连接云端，无法发帖', true); return Promise.reject(); }
+  return db.ref('posts').push(post);
+}
+function cloudUpdatePost(id, patch){
+  var p = byId(id);
+  if(!p || !p._key || !firebaseReady) return Promise.reject();
+  return db.ref('posts/' + p._key).update(patch);
+}
+function cloudDeletePost(id){
+  var p = byId(id);
+  if(!p || !p._key || !firebaseReady) return Promise.reject();
+  return db.ref('posts/' + p._key).remove();
+}
+function cloudAddComment(postId, cmt){
+  var p = byId(postId);
+  if(!p || !p._key || !firebaseReady) return Promise.reject();
+  return db.ref('posts/' + p._key + '/cmts').push(cmt);
+}
+function cloudLikePost(postId){
+  var p = byId(postId);
+  if(!p || !p._key || !firebaseReady) return Promise.reject();
+  return db.ref('posts/' + p._key + '/likes').transaction(function(c){
+    return (c || 0) + 1;
+  });
+}
+function cloudUnlikePost(postId){
+  var p = byId(postId);
+  if(!p || !p._key || !firebaseReady) return Promise.reject();
+  return db.ref('posts/' + p._key + '/likes').transaction(function(c){
+    return Math.max(0, (c || 0) - 1);
+  });
+}
+function cloudIncViews(postId){
+  var p = byId(postId);
+  if(!p || !p._key || !firebaseReady) return;
+  db.ref('posts/' + p._key + '/views').transaction(function(c){
+    return (c || 0) + 1;
+  });
+}
+
+/* ===================== 监听云端帖子 ===================== */
+function startCloudListener(){
+  if(!firebaseReady || !db) {
+    POSTS = defaultPosts.slice();
+    dataReady = true;
+    applyFilterAndRender();
+    return;
+  }
+
+  db.ref('posts').on('value', function(snapshot){
+    var cloudPosts = [];
+    snapshot.forEach(function(child){
+      var p = child.val();
+      p._key = child.key;
+      cloudPosts.push(p);
+    });
+
+    // 合并默认帖子（只展示，不写库）
+    var merged = cloudPosts.slice();
+    defaultPosts.forEach(function(dp){
+      if(!merged.some(function(p){ return p.id === dp.id; })) merged.push(dp);
+    });
+
+    POSTS = merged;
+    dataReady = true;
+    applyFilterAndRender();
+
+    // 如果详情页开着，刷新详情
+    if(cur){
+      var still = byId(cur);
+      if(still) renderDetailContent(still);
+      else { $('detail').classList.remove('on'); cur = null; }
+    }
+  }, function(err){
+    console.error('[Firebase] 监听失败:', err);
+    showToast('云端连接失败：' + err.message, true);
+    POSTS = defaultPosts.slice();
+    dataReady = true;
+    applyFilterAndRender();
+  });
+}
+
 /* ===================== Markdown & 图片 ===================== */
 function parseMarkdown(text){
   var safe = esc(text);
-  safe = safe.replace(/\*\*(.+?)\*\*/g, '<b>\$1</b>');
+  safe = safe.replace(/\*\*(.+?)\*\*/g, '<b>\$1</b>');   // ✅ 修复：\$1 不加反斜杠
   safe = safe.replace(/\n/g, '<br>');
   return safe.replace(/@([^\s，。！？,.!?]+)/g, function(match, name){
     return '<span class="mention" data-mname="'+name+'">@'+name+'</span>';
@@ -495,7 +624,7 @@ function addNotice(type, postId, text){
   if(!CU) return;
   NOTICES.unshift({ id: Date.now() + Math.random(), type: type, postId: postId, text: text, time: Date.now(), read: false });
   if(NOTICES.length > 50) NOTICES.pop();
-  saveAll(); updateNoticeDot();
+  savePersonal(); updateNoticeDot();
   if(!$('noticePanel').classList.contains('on')) showToast('收到新通知 🔔');
 }
 function updateNoticeDot(){
@@ -507,7 +636,7 @@ function openNoticePanel(){
   $('noticePanel').classList.add('on');
   renderNotices();
   NOTICES.forEach(function(n){ n.read = true; });
-  saveAll(); updateNoticeDot();
+  savePersonal(); updateNoticeDot();
 }
 function closeNoticePanel(){ $('noticePanel').classList.remove('on'); }
 function renderNotices(){
@@ -536,8 +665,8 @@ function applyFilterAndRender(){
     if(a.isTop && !b.isTop) return -1;
     if(!a.isTop && b.isTop) return 1;
     if((localStorage.getItem('sortMode')||'new')==='hot'){
-      var sa = ((a.likes||0)*2 + (a.cmts||[]).length*3 + 1) / Math.pow((Date.now()-(a.time||0))/3600000 + 2, 0.8);
-      var sb = ((b.likes||0)*2 + (b.cmts||[]).length*3 + 1) / Math.pow((Date.now()-(b.time||0))/3600000 + 2, 0.8);
+      var sa = ((a.likes||0)*2 + cmtsToArray(a.cmts).length*3 + 1) / Math.pow((Date.now()-(a.time||0))/3600000 + 2, 0.8);
+      var sb = ((b.likes||0)*2 + cmtsToArray(b.cmts).length*3 + 1) / Math.pow((Date.now()-(b.time||0))/3600000 + 2, 0.8);
       return sb - sa;
     }
     return b.time - a.time;
@@ -547,7 +676,7 @@ function applyFilterAndRender(){
   filteredPosts = sortedPosts.filter(function(p){
     if(curFilter!=='all' && p.cat!==curFilter && !p.isTop) return false;
     if(kw){
-      var hay = (p.title+' '+p.body.join(' ')+' '+p.author).toLowerCase();
+      var hay = (p.title+' '+(p.body||[]).join(' ')+' '+p.author).toLowerCase();
       if(hay.indexOf(kw)<0) return false;
     }
     return true;
@@ -587,13 +716,14 @@ function loadMore(){
       var isH = p.cat==='horror';
       var cls = p.isTop ? 'post pinned' : 'post';
       var isMine = (p.author===CU);
+      var cmtsArr = cmtsToArray(p.cmts);
 
       h+='<div class="'+cls+'" data-id="'+p.id+'" data-cat="'+p.cat+'">';
       if(isMine){ h+='<div class="post-menu"><button data-edit="'+p.id+'">✎</button><button data-del="'+p.id+'">🗑</button></div>'; }
       h+='<h3 style="'+(isH?'color:#b91c1c':'')+'">';
       if(p.isTop) h+='<span class="badge-pin">置顶</span>';
       h+=esc(p.title)+'</h3>';
-      h+='<p>'+esc(p.body[0])+'</p>';
+      h+='<p>'+esc((p.body||[''])[0])+'</p>';
 
       if(p.images && p.images.length){
         h+='<div class="post-imgs">';
@@ -606,8 +736,8 @@ function loadMore(){
       h+='<div class="meta"><span class="mav" style="background:'+p.bg+'">'+esc(p.ini)+'</span>';
       h+='<span class="pname" data-uname="'+esc(p.author)+'">'+esc(p.author)+'</span>';
       h+='<span>'+formatTime(p.time)+'</span>';
-      h+='<span>💬 '+p.cmts.length+'</span><span>👁 '+p.views+'</span>';
-      h+='<button class="like '+((p.likedByMe)?'on':'')+'" data-like="'+p.id+'"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 000-7.8z"/></svg><span class="lc">'+p.likes+'</span></button>';
+      h+='<span>💬 '+cmtsArr.length+'</span><span>👁 '+(p.views||0)+'</span>';
+      h+='<button class="like '+((p.likedByMe)?'on':'')+'" data-like="'+p.id+'"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 000-7.8z"/></svg><span class="lc">'+(p.likes||0)+'</span></button>';
       h+='<button class="like '+((isFav(p.id))?'on':'')+'" data-fav="'+p.id+'"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></button>';
       h+='</div></div>';
     }
@@ -639,11 +769,11 @@ $('list').onclick = function(e){
   if(e.target.closest('[data-like]')){
     var b = e.target.closest('[data-like]');
     var p = byId(+b.getAttribute('data-like')); if(!p) return;
+    if(!CU){ openAuth(); return; }
     p.likedByMe = !p.likedByMe;
     b.classList.toggle('on', p.likedByMe);
-    p.likes = p.likedByMe ? p.likes+1 : Math.max(0, p.likes-1);
-    b.querySelector('.lc').textContent = p.likes;
-    saveAll(); return;
+    if(p.likedByMe) cloudLikePost(p.id); else cloudUnlikePost(p.id);
+    return;
   }
   var img = e.target.closest('.post-img');
   if(img){ openImgPreview(img.getAttribute('data-img')); return; }
@@ -663,9 +793,8 @@ $('imgPreview').onclick = closeImgPreview;
 function cleanAIText(t){
   if(!t) return t;
   t = t.replace(/\*[^*\n]{1,20}\*/g, '');
-  t = t.replace(/（[^）\n]{1,20}）/g, '');
-  t = t.replace(/$[^)\n]{1,20}$/g, '');
-  t = t.replace(/$$[^$$\n]{1,20}\]/g, '');
+  t = t.replace(/（[^）\n]{1,20}）/g, '');      // ✅ 修复：中文括号
+  t = t.replace(/【[^】\n]{1,20}】/g, '');      // ✅ 修复：中文方括号
   t = t.replace(/^[\s\-—:：]+/, '');
   return t.replace(/\s{2,}/g, ' ').trim();
 }
@@ -713,15 +842,16 @@ async function callAI(sysPrompt, userPrompt, maxTokens){
 async function generateComment(post, targetCommentText, commenterName, isOP){
   var commenter = getUser(commenterName);
   var text = '', isAI = false, mentionTarget = '';
+  var cmtsArr = cmtsToArray(post.cmts);
 
   if(!isOP && targetCommentText && Math.random()<0.3){
     var names = [];
-    for(var i=0;i<post.cmts.length;i++){ var n = post.cmts[i].name; if(n!==commenterName && n!==CU && names.indexOf(n)<0) names.push(n); }
+    for(var i=0;i<cmtsArr.length;i++){ var n = cmtsArr[i].name; if(n!==commenterName && n!==CU && names.indexOf(n)<0) names.push(n); }
     if(names.length) mentionTarget = names[Math.floor(Math.random()*names.length)];
   }
 
   if(AI_KEY){
-    var sys = '你叫'+commenter.n+'。你的性格：'+commenter.persona+'。\n帖子标题：《'+post.title+'》\n楼主：'+post.author+'\n内容："'+post.body.join(' ')+'"\n';
+    var sys = '你叫'+commenter.n+'。你的性格：'+commenter.persona+'。\n帖子标题：《'+post.title+'》\n楼主：'+post.author+'\n内容："'+(post.body||[]).join(' ')+'"\n';
     var atMatch = targetCommentText ? targetCommentText.match(/@([^\s，。！？,.!?]+)/) : null;
     var atName = atMatch ? atMatch[1] : '';
 
@@ -750,6 +880,7 @@ async function generateComment(post, targetCommentText, commenterName, isOP){
   return {text:text, isAI:isAI, isLocal:!isAI};
 }
 
+/* ⚠️ 关键改造：AI 评论写进云端，而不是 localStorage */
 async function triggerAutoComments(postId, isUserPost){
   var p = byId(postId); if(!p) return;
   var candidates = BOTS.filter(function(b){ return b.n!==p.author && b.n!=='管理员' && b.n!==CU; });
@@ -762,9 +893,10 @@ async function triggerAutoComments(postId, isUserPost){
     setTimeout(async function(){
       var currentPost = byId(postId); if(!currentPost) return;
       var bot = candidates[Math.floor(Math.random()*candidates.length)];
-      if(!bot || currentPost.cmts.some(function(c){ return c.name===bot.n; })) return;
+      var cmtsArr = cmtsToArray(currentPost.cmts);
+      if(!bot || cmtsArr.some(function(c){ return c.name===bot.n; })) return;
 
-      var lastCmt = currentPost.cmts.length>0 ? currentPost.cmts[currentPost.cmts.length-1] : null;
+      var lastCmt = cmtsArr.length>0 ? cmtsArr[cmtsArr.length-1] : null;
       var lastComment = lastCmt ? lastCmt.text : '';
       if(lastComment){
         var m = lastComment.match(/@([^\s，。！？,.!?]+)/);
@@ -774,99 +906,63 @@ async function triggerAutoComments(postId, isUserPost){
       var res = await generateComment(currentPost, lastComment, bot.n, false);
       if(res.skip || !res.text || !res.text.trim()) return;
 
-      currentPost.cmts.push({name:bot.n, ini:bot.i, bg:bot.bg, time:Date.now(), text:res.text, isAI:res.isAI, isLocal:res.isLocal});
-      saveAll();
-      if(cur===currentPost.id) renderCmts(currentPost);
-      updateCardCount(currentPost);
+      // ✅ 写进云端
+      cloudAddComment(postId, {
+        name: bot.n, ini: bot.i, bg: bot.bg,
+        time: Date.now(), text: res.text,
+        isAI: res.isAI, isLocal: res.isLocal
+      });
 
-      if(currentPost.author === CU) { addNotice('reply', currentPost.id, bot.n + ' 回复了你的帖子《' + currentPost.title.slice(0,10) + '...》'); }
+      if(currentPost.author === CU) {
+        addNotice('reply', currentPost.id, bot.n + ' 回复了你的帖子《' + currentPost.title.slice(0,10) + '...》');
+      }
 
       if(Math.random()<0.4 && currentPost.author!=='管理员'){
         setTimeout(async function(){
-          var opRes = await generateComment(currentPost, res.text, currentPost.author, true);
+          var cp = byId(postId); if(!cp) return;
+          var opRes = await generateComment(cp, res.text, cp.author, true);
           if(opRes.skip || !opRes.text || !opRes.text.trim()) return;
-          var opUser = getUser(currentPost.author);
-          currentPost.cmts.push({name:currentPost.author, ini:opUser.i, bg:opUser.bg, time:Date.now(), text:opRes.text, isAI:opRes.isAI, isLocal:opRes.isLocal});
-          saveAll();
-          if(cur===currentPost.id) renderCmts(currentPost);
-          updateCardCount(currentPost);
+          var opUser = getUser(cp.author);
+          cloudAddComment(postId, {
+            name: cp.author, ini: opUser.i, bg: opUser.bg,
+            time: Date.now(), text: opRes.text,
+            isAI: opRes.isAI, isLocal: opRes.isLocal
+          });
         }, 4000);
       }
     }, delay);
   }
 }
 
-async function makeBotPost(bot){
-  var newPost = null;
-  var hasImg = Math.random() < 0.3;
-  var imgUrls = [
-    'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400&q=80',
-    'https://images.unsplash.com/photo-1509248961158-e54f6934749c?w=400&q=80',
-    'https://images.unsplash.com/photo-1505682634904-d7c8d95cdc50?w=400&q=80'
-  ];
-
-  if(AI_KEY){
-    var sys = '你是'+bot.n+'，性格：'+bot.persona+'。请返回 JSON：{"title":"标题","body":["内容"]}';
-    var raw = await callAI(sys, '发帖', 300);
-    if(raw){
-      try{
-        var match = raw.match(/\{[\s\S]*\}/);
-        if(match){
-          var parsed = JSON.parse(match[0]);
-          if(parsed.title && Array.isArray(parsed.body) && parsed.body.length){
-            newPost = {id:Date.now()+Math.floor(Math.random()*1000),cat:bot.cat,tag:'日常',time:Date.now(),title:parsed.title,author:bot.n,ini:bot.i,bg:bot.bg,views:1,likes:0,body:parsed.body,cmts:[]};
-            if(hasImg) newPost.images = [imgUrls[Math.floor(Math.random()*imgUrls.length)]];
-          }
-        }
-      }catch(e){ console.warn('[makeBotPost] JSON 解析失败', e); }
-    }
-  }
-  if(!newPost){
-    var pool = {horror:['刚刚好像看到窗外有个人影','半夜听到有人叫我的名字'],tech:['踩坑记录：千万别用这个库','今天写了个优雅的函数'],life:['周末去爬山了，风景真好','买了束花']};
-    var arr = pool[bot.cat] || pool['life'];
-    newPost = {id:Date.now()+Math.floor(Math.random()*1000),cat:bot.cat,tag:'日常',time:Date.now(),title:arr[Math.floor(Math.random()*arr.length)],author:bot.n,ini:bot.i,bg:bot.bg,views:1,likes:0,body:['今天发生了点事。'],cmts:[]};
-    if(hasImg) newPost.images = [imgUrls[Math.floor(Math.random()*imgUrls.length)]];
-  }
-  return newPost;
-}
-
-async function autoPostOnce(){
-  var candidates = BOTS.filter(function(b){ return b.n!=='管理员'; });
-  var bot = candidates[Math.floor(Math.random()*candidates.length)];
-  var newPost = await makeBotPost(bot);
-  if(!newPost) return;
-  POSTS.unshift(newPost);
-  saveAll();
-  applyFilterAndRender();
-  triggerAutoComments(newPost.id, false);
-}
-
-function startAutoPost(){
-  function loop(){
-    var delay = 120000 + Math.random()*120000;
-    setTimeout(async function(){ await autoPostOnce(); loop(); }, delay);
-  }
-  loop();
-}
-
 /* ===================== 详情页 ===================== */
 function openPost(id){
   var p = byId(id); if(!p) return;
   _scrollY = window.scrollY;
-  p.views = (p.views||0) + 1;
-  cur = id; dLiked = !!p.likedByMe;
+  cur = id;
+  dLiked = !!p.likedByMe;
 
+  // 浏览量 +1（云端事务）
+  cloudIncViews(id);
+
+  renderDetailContent(p);
+  $('cInput').value = '';
+  $('detail').classList.add('on');
+  $('detail').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function renderDetailContent(p){
   var titleHTML = p.isTop ? '<span class="badge-pin" style="vertical-align:middle;">置顶</span>' : '';
   $('dTitle').innerHTML = titleHTML + esc(p.title);
   $('dTitle').style.color = p.cat==='horror' ? '#b91c1c' : '';
   $('dMeta').textContent = p.tag+' · '+formatTime(p.time)+' · '+p.author;
-  $('dViews').textContent = p.views;
-  $('dLikeCount').textContent = p.likes;
+  $('dViews').textContent = p.views || 0;
+  $('dLikeCount').textContent = p.likes || 0;
   $('dLike').classList.toggle('on', dLiked);
   renderFriendBar(p);
 
   var b='';
-  for(var i=0;i<p.body.length;i++) b += '<p>'+parseMarkdown(p.body[i])+'</p>';
+  var bodyArr = p.body || [];
+  for(var i=0;i<bodyArr.length;i++) b += '<p>'+parseMarkdown(bodyArr[i])+'</p>';
 
   if(p.images && p.images.length){
     b += '<div class="post-imgs">';
@@ -882,9 +978,6 @@ function openPost(id){
   });
 
   renderCmts(p);
-  $('cInput').value = '';
-  $('detail').classList.add('on');
-  $('detail').scrollIntoView({behavior:'smooth', block:'start'});
 
   var dact = document.querySelector('.dact');
   var old = dact.querySelector('[data-dfav]');
@@ -901,10 +994,7 @@ function openPost(id){
     if(listBtn) listBtn.classList.toggle('on', now);
     showToast(now ? '已收藏' : '已取消收藏');
   };
-  dact.appendChild(btn);
-
-  clearTimeout(window._viewSaveTimer);
-  window._viewSaveTimer = setTimeout(saveAll, 2000);
+    dact.appendChild(btn);
 }
 
 function renderFriendBar(p){
@@ -918,8 +1008,8 @@ function renderFriendBar(p){
     $('addFromPost').onclick = function(){
       if(!CU){ openAuth(); return; }
       if(isFriend(p.author)) return;
-            FRIENDS.push({name:p.author, ini:p.ini, bg:p.bg, bio:getUser(p.author).bio});
-      saveAll();
+      FRIENDS.push({name:p.author, ini:p.ini, bg:p.bg, bio:getUser(p.author).bio});
+      savePersonal();
       renderFriendBar(p);
       showToast('已添加 '+p.author+' 为好友');
     };
@@ -928,10 +1018,11 @@ function renderFriendBar(p){
 
 function renderCmts(p){
   var box = $('dCmts');
-  $('dCmtCount').textContent = p.cmts.length;
-  if(!p.cmts.length){ box.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:8px 0">还没有评论，来抢沙发～</div>'; return; }
+  var cmtsArr = cmtsToArray(p.cmts);
+  $('dCmtCount').textContent = cmtsArr.length;
+  if(!cmtsArr.length){ box.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:8px 0">还没有评论，来抢沙发～</div>'; return; }
 
-  var sortedCmts = p.cmts.slice().sort(function(a,b){ return (a.time||0)-(b.time||0); });
+  var sortedCmts = cmtsArr.slice().sort(function(a,b){ return (a.time||0)-(b.time||0); });
   var h = '';
   for(var i=0;i<sortedCmts.length;i++){
     var c = sortedCmts[i];
@@ -968,18 +1059,6 @@ function renderCmts(p){
   });
 }
 
-function updateCardCount(p){
-  var card = document.querySelector('.post[data-id="'+p.id+'"]');
-  if(!card) return;
-  var meta = card.querySelector('.meta');
-  if(!meta) return;
-  var spans = meta.querySelectorAll('span');
-  for(var i=0;i<spans.length;i++){
-    if(spans[i].textContent.indexOf('💬')===0) spans[i].textContent = '💬 '+p.cmts.length;
-    if(spans[i].textContent.indexOf('👁')===0) spans[i].textContent = '👁 '+p.views;
-  }
-}
-
 $('dClose').onclick = function(){
   $('detail').classList.remove('on');
   cur = null;
@@ -988,19 +1067,14 @@ $('dClose').onclick = function(){
 
 $('dLike').onclick = function(){
   if(!cur) return;
+  if(!CU){ openAuth(); return; }
   var p = byId(cur); if(!p) return;
   p.likedByMe = !p.likedByMe;
   dLiked = p.likedByMe;
-  p.likes = dLiked ? p.likes+1 : Math.max(0, p.likes-1);
   this.classList.toggle('on', dLiked);
-  $('dLikeCount').textContent = p.likes;
+  if(dLiked) cloudLikePost(cur); else cloudUnlikePost(cur);
   var listBtn = document.querySelector('.post[data-id="'+cur+'"] [data-like]');
-  if(listBtn){
-    listBtn.classList.toggle('on', dLiked);
-    var lc = listBtn.querySelector('.lc');
-    if(lc) lc.textContent = p.likes;
-  }
-  saveAll();
+  if(listBtn) listBtn.classList.toggle('on', dLiked);
 };
 
 $('cSend').onclick = async function(){
@@ -1012,11 +1086,14 @@ $('cSend').onclick = async function(){
 
   var p = byId(cur); if(!p) return;
   var me = getUser(CU);
-  p.cmts.push({name:CU, ini:me.i, bg:me.bg, time:Date.now(), text:text, isAI:false, isLocal:false});
+
+  // ✅ 写进云端
+  cloudAddComment(cur, {
+    name: CU, ini: me.i, bg: me.bg,
+    time: Date.now(), text: text,
+    isAI: false, isLocal: false
+  });
   input.value = '';
-  saveAll();
-  renderCmts(p);
-  updateCardCount(p);
 
   if(p.author !== CU){
     setTimeout(async function(){
@@ -1024,10 +1101,11 @@ $('cSend').onclick = async function(){
       var res = await generateComment(currentPost, text, currentPost.author, true);
       if(res.skip || !res.text || !res.text.trim()) return;
       var opUser = getUser(currentPost.author);
-      currentPost.cmts.push({name:currentPost.author, ini:opUser.i, bg:opUser.bg, time:Date.now(), text:res.text, isAI:res.isAI, isLocal:res.isLocal});
-      saveAll();
-      if(cur===currentPost.id) renderCmts(currentPost);
-      updateCardCount(currentPost);
+      cloudAddComment(cur, {
+        name: currentPost.author, ini: opUser.i, bg: opUser.bg,
+        time: Date.now(), text: res.text,
+        isAI: res.isAI, isLocal: res.isLocal
+      });
     }, 1500 + Math.random()*1500);
   }
 
@@ -1063,7 +1141,7 @@ function openUserCard(name){
       if(!CU){ closeUserCard(); openAuth(); return; }
       if(isFriend(name)) return;
       FRIENDS.push({name:name, ini:u.i, bg:u.bg, bio:u.bio});
-      saveAll();
+      savePersonal();
       showToast('已添加 '+name+' 为好友');
       openUserCard(name);
     };
@@ -1074,7 +1152,7 @@ function openUserCard(name){
   else{
     for(var i=0;i<posts.length;i++){
       var p = posts[i];
-      ph += '<div class="ucard-post" data-pid="'+p.id+'"><h4>'+esc(p.title)+'</h4><div class="m">'+formatTime(p.time)+' · 💬 '+p.cmts.length+' · 👁 '+p.views+'</div></div>';
+      ph += '<div class="ucard-post" data-pid="'+p.id+'"><h4>'+esc(p.title)+'</h4><div class="m">'+formatTime(p.time)+' · 💬 '+cmtsToArray(p.cmts).length+' · 👁 '+(p.views||0)+'</div></div>';
     }
   }
   $('ucPosts').innerHTML = ph;
@@ -1199,7 +1277,7 @@ function renderMsg(){
         if(isFriend(name)) return;
         var u = getUser(name);
         FRIENDS.push({name:name, ini:u.i, bg:u.bg, bio:u.bio});
-        saveAll();
+        savePersonal();
         showToast('已添加 '+name);
         renderMsg();
       };
@@ -1210,7 +1288,7 @@ function renderMsg(){
 function openChat(name){
   curChat = name;
   UNREAD[name] = 0;
-  saveAll();
+  savePersonal();
   updateUnreadDot();
   renderMsg();
 }
@@ -1222,7 +1300,7 @@ $('chatSend').onclick = function(){
   if(!MSGS[curChat]) MSGS[curChat] = [];
   MSGS[curChat].push({from:CU, text:text, time:Date.now()});
   input.value = '';
-  saveAll();
+  savePersonal();
   renderMsg();
 
   var friendName = curChat;
@@ -1236,11 +1314,11 @@ $('chatSend').onclick = function(){
     }
     if(!MSGS[friendName]) MSGS[friendName] = [];
     MSGS[friendName].push({from:friendName, text:reply, time:Date.now()});
-    saveAll();
+    savePersonal();
     if(curChat===friendName) renderMsg();
     else {
       UNREAD[friendName] = (UNREAD[friendName]||0) + 1;
-      saveAll();
+      savePersonal();
       updateUnreadDot();
     }
   }, 1200 + Math.random()*1500);
@@ -1257,7 +1335,7 @@ $('addGo').onclick = function(){
   if(isFriend(name)){ showToast('已经是好友了', true); return; }
   var u = getUser(name);
   FRIENDS.push({name:name, ini:u.i, bg:u.bg, bio:u.bio});
-  saveAll();
+  savePersonal();
   $('addName').value = '';
   showToast('已添加 '+name);
   renderMsg();
@@ -1321,7 +1399,7 @@ function openComposer(editId){
     if(p){
       $('compTitle').value = p.title;
       $('compCat').value = p.cat;
-      $('compBody').value = p.body.join('\n');
+      $('compBody').value = (p.body||[]).join('\n');
     }
   }else{
     $('compTitle').value = '';
@@ -1362,12 +1440,13 @@ $('compGo').onclick = function(){
   if(editingPostId){
     var p = byId(editingPostId);
     if(p){
-      p.title = title; p.body = bodyArr; p.cat = cat;
-      if(pendingImages.length) p.images = (p.images||[]).concat(pendingImages);
-      saveAll();
-      applyFilterAndRender();
-      if(cur===p.id) openPost(p.id);
-      showToast('已更新');
+      var patch = { title: title, body: bodyArr, cat: cat };
+      if(pendingImages.length) patch.images = (p.images||[]).concat(pendingImages);
+      cloudUpdatePost(p.id, patch).then(function(){
+        showToast('已更新');
+      }).catch(function(){
+        showToast('更新失败，请检查网络', true);
+      });
     }
   }else{
     var newPost = {
@@ -1382,14 +1461,17 @@ $('compGo').onclick = function(){
       views: 1,
       likes: 0,
       body: bodyArr,
-      cmts: []
+      cmts: {}
     };
     if(pendingImages.length) newPost.images = pendingImages.slice();
-    POSTS.unshift(newPost);
-    saveAll();
-    applyFilterAndRender();
-    showToast('发布成功！AI 网友们马上就来 👀');
-    triggerAutoComments(newPost.id, true);
+
+    cloudAddPost(newPost).then(function(ref){
+      showToast('发布成功！AI 网友们马上就来 👀');
+      // 等云端返回 _key 后再触发 AI 评论
+      setTimeout(function(){ triggerAutoComments(newPost.id, true); }, 800);
+    }).catch(function(){
+      showToast('发布失败，请检查网络或 Firebase 配置', true);
+    });
   }
   pendingImages = [];
   closeComposer();
@@ -1397,13 +1479,12 @@ $('compGo').onclick = function(){
 
 function delPost(id){
   if(!confirm('确定删除这个帖子吗？')) return;
-  var idx = -1;
-  for(var i=0;i<POSTS.length;i++) if(POSTS[i].id===id){ idx=i; break; }
-  if(idx>=0) POSTS.splice(idx,1);
-  saveAll();
-  if(cur===id){ $('detail').classList.remove('on'); cur=null; }
-  applyFilterAndRender();
-  showToast('已删除');
+  cloudDeletePost(id).then(function(){
+    showToast('已删除');
+    if(cur===id){ $('detail').classList.remove('on'); cur=null; }
+  }).catch(function(){
+    showToast('删除失败', true);
+  });
 }
 
 /* ===================== AI 配置 ===================== */
@@ -1492,7 +1573,7 @@ $('themeBtn').onclick = function(){
   this.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
 };
 $('resetBtn').onclick = function(){
-  if(!confirm('确定重置所有数据吗？这会清空你发的帖子、好友、消息。')) return;
+  if(!confirm('确定重置所有本地数据吗？（云端帖子不会被删除）')) return;
   localStorage.clear();
   location.reload();
 };
@@ -1529,17 +1610,36 @@ document.querySelector('.bottom-nav').onclick = function(e){
   else if(nav==='me'){ if(CU) openUserCard(CU); else openAuth(); }
 };
 
-/* ===================== 初始化 ===================== */
-renderUserArea();
-updateUnreadDot();
-updateNoticeDot();
-applyFilterAndRender();
-startAutoPost();
+/* ===================== 初始化（安全版） ===================== */
+function boot(){
+  try {
+    initFirebase();
+    renderUserArea();
+    updateUnreadDot();
+    updateNoticeDot();
+    startCloudListener();
+    if(!CU){
+      setTimeout(function(){
+        if(!CU) showToast('👋 点右上角「登录」开始发帖');
+      }, 2000);
+    }
+  } catch (e) {
+    console.error('[Boot] 初始化失败:', e);
+    // 兜底：至少把默认帖子显示出来
+    try {
+      POSTS = defaultPosts.slice();
+      dataReady = true;
+      applyFilterAndRender();
+    } catch(e2) {
+      console.error('[Boot] 兜底也失败:', e2);
+    }
+  }
+}
 
-if(!CU){
-  setTimeout(function(){
-    if(!CU) showToast('👋 点右上角「登录」开始发帖');
-  }, 2000);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
 }
 </script>
 </body>
