@@ -200,7 +200,8 @@ input,textarea{font-family:inherit;color:inherit}
     <button class="tab" data-f="tech">技术</button>
     <button class="tab" data-f="life">生活</button>
     <button class="tab horror" data-f="horror">灵异怪谈</button>
-  </div>
+  <button class="tab" data-f="chat">闲聊</button>
+</div>
 
   <div class="detail" id="detail">
     <h2 id="dTitle"></h2>
@@ -261,6 +262,7 @@ input,textarea{font-family:inherit;color:inherit}
       <option value="tech">技术</option>
       <option value="life">生活</option>
       <option value="horror">灵异怪谈</option>
+      <option value="chat">闲聊</option>
     </select>
     <textarea id="compBody" placeholder="说点什么… (支持 **加粗** 和换行)"></textarea>
     <input type="file" id="compImg" accept="image/*" style="border:none;padding:0;height:auto;font-size:.8rem">
@@ -351,7 +353,7 @@ input,textarea{font-family:inherit;color:inherit}
 <script>
 /* ===================== Firebase 初始化（安全版） ===================== */
 const firebaseConfig = {
-  databaseURL: https://weiguang-forum-default-rtdb.firebaseio.com/  // ← 改成你自己的
+  databaseURL: "https://weiguang-forum-default-rtdb.firebaseio.com"// ← 改成你自己的
 };
 
 let db = null;
