@@ -174,6 +174,17 @@ input,textarea{font-family:inherit;color:inherit}
   .post-menu{opacity:1}
   .bar .btn.ghost#msgBtn{display:none}
 }
+/* ===== 头像上传 ===== */
+.av{overflow:hidden;position:relative}
+.av img,.mav img,.ucard-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.av{cursor:pointer}
+.avatar-picker{position:fixed;inset:0;z-index:200;background:rgba(15,18,30,.5);display:none;align-items:center;justify-content:center;padding:16px}
+.avatar-picker.on{display:flex}
+.avatar-picker .box{background:var(--card);border-radius:16px;padding:22px;width:min(340px,100%);text-align:center;box-shadow:0 20px 60px -20px rgba(10,14,30,.4)}
+.avatar-picker h3{font-size:1rem;font-weight:800;margin-bottom:16px}
+.avatar-preview{width:96px;height:96px;border-radius:50%;background:var(--input-bg);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:800;color:#fff;overflow:hidden}
+.avatar-picker .btn{width:100%;height:38px;margin-bottom:8px}
+.avatar-picker .cancel{font-size:.77rem;color:var(--muted);cursor:pointer;padding:6px}
 </style>
 </head>
 <body>
@@ -348,11 +359,128 @@ input,textarea{font-family:inherit;color:inherit}
   </div>
 </div>
 
+<!-- 头像选择弹窗 -->
+<div class="avatar-picker" id="avatarPicker">
+  <div class="box">
+    <h3>更换头像</h3>
+    <div class="avatar-preview" id="avatarPreview"></div>
+    <input type="file" id="avatarFile" accept="image/*" style="display:none">
+    <button class="btn" id="avatarChoose">选择图片</button>
+    <button class="btn ghost" id="avatarReset" style="background:var(--input-bg);color:var(--sub)">恢复默认</button>
+    <div class="cancel" id="avatarCancel">取消</div>
+  </div>
+</div>
+
 <!-- ============ Firebase SDK ============ -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
+/* ===================== 头像上传 ===================== */
+var AVATAR_CACHE = {};   // 内存缓存：用户名 -> base64
+
+// 打开头像选择器
+function openAvatarPicker(){
+  if(!CU){ openAuth(); return; }
+  var preview = $('avatarPreview');
+  var u = getUser(CU);
+  var cached = AVATAR_CACHE[CU];
+  if(cached){
+    preview.innerHTML = '<img src="'+cached+'">';
+  }else{
+    preview.textContent = u.i;
+    preview.style.background = u.bg;
+  }
+  $('avatarPicker').classList.add('on');
+}
+function closeAvatarPicker(){ $('avatarPicker').classList.remove('on'); }
+
+// 选择文件
+$('avatarChoose').onclick = function(){ $('avatarFile').click(); };
+
+$('avatarFile').onchange = function(e){
+  var file = e.target.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024){ showToast('图片太大，请小于 5MB', true); return; }
+
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    // 压缩成 128x128 正方形
+    var img = new Image();
+    img.onload = function(){
+      var canvas = document.createElement('canvas');
+      canvas.width = 128; canvas.height = 128;
+      var ctx = canvas.getContext('2d');
+      var min = Math.min(img.width, img.height);
+      var sx = (img.width - min) / 2;
+      var sy = (img.height - min) / 2;
+      ctx.drawImage(img, sx, sy, min, min, 0, 0, 128, 128);
+      var base64 = canvas.toDataURL('image/jpeg', 0.85);
+
+      // 预览
+      $('avatarPreview').innerHTML = '<img src="'+base64+'">';
+
+      // 存到云端 users/{CU}/avatar
+      if(!firebaseReady){ showToast('云端未连接', true); return; }
+      db.ref('users/' + CU + '/avatar').set(base64).then(function(){
+        AVATAR_CACHE[CU] = base64;
+        showToast('头像已更新');
+        refreshAllAvatars();
+        setTimeout(closeAvatarPicker, 400);
+      }).catch(function(err){
+        showToast('保存失败：' + err.message, true);
+      });
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+};
+
+// 恢复默认（删掉 avatar 字段）
+$('avatarReset').onclick = function(){
+  if(!firebaseReady) return;
+  db.ref('users/' + CU + '/avatar').remove().then(function(){
+    delete AVATAR_CACHE[CU];
+    showToast('已恢复默认头像');
+    refreshAllAvatars();
+    closeAvatarPicker();
+  });
+};
+$('avatarCancel').onclick = closeAvatarPicker;
+$('avatarPicker').onclick = function(e){ if(e.target === this) closeAvatarPicker(); };
+
+// 刷新页面上所有头像
+function refreshAllAvatars(){
+  renderUserArea();
+  applyFilterAndRender();
+  if(cur){ var p = byId(cur); if(p) renderDetailContent(p); }
+  if($('msgPanel').classList.contains('on')) renderMsg();
+}
+
+// 生成头像 HTML（有图用图，没图用首字母）
+function avatarHTML(name, ini, bg, size){
+  var cached = AVATAR_CACHE[name];
+  var style = 'background:'+bg+';' + (size ? 'width:'+size+'px;height:'+size+'px;font-size:'+(size*0.4)+'px;' : '');
+  if(cached){
+    return '<span class="mav" style="'+style+'padding:0"><img src="'+cached+'"></span>';
+  }
+  return '<span class="mav" style="'+style+'">'+esc(ini)+'</span>';
+}
+
+// 加载所有用户头像（启动时调用）
+function loadAllAvatars(){
+  if(!firebaseReady) return;
+  db.ref('users').once('value').then(function(snap){
+    snap.forEach(function(child){
+      var u = child.val();
+      if(u && u.avatar) AVATAR_CACHE[child.key] = u.avatar;
+    });
+    refreshAllAvatars();
+  }).catch(function(e){
+    console.warn('[Avatar] 加载失败:', e.message);
+  });
+ }
 /* ===================== Firebase 初始化（安全版） ===================== */
 const firebaseConfig = {
   databaseURL: "https://weiguang-forum-default-rtdb.firebaseio.com"// ← 改成你自己的
@@ -911,7 +1039,7 @@ function loadMore(){
         h+='</div>';
       }
 
-      h+='<div class="meta"><span class="mav" style="background:'+p.bg+'">'+esc(p.ini)+'</span>';
+      h+='<div class="meta">'+avatarHTML(p.author, p.ini, p.bg);
       h+='<span class="pname" data-uname="'+esc(p.author)+'">'+esc(p.author)+'</span>';
       h+='<span>'+formatTime(p.time)+'</span>';
       h+='<span>💬 '+cmtsArr.length+'</span><span>👁 '+(p.views||0)+'</span>';
@@ -1094,20 +1222,22 @@ async function triggerAutoComments(postId, isUserPost){
       if(currentPost.author === CU) {
         addNotice('reply', currentPost.id, bot.n + ' 回复了你的帖子《' + currentPost.title.slice(0,10) + '...》');
       }
+      // 只有「楼主是机器人」时才允许 AI 替楼主回复
+var authorIsBot = BOTS.some(function(b){ return b.n === currentPost.author; });
 
-      if(Math.random()<0.4 && currentPost.author!=='管理员'){
-        setTimeout(async function(){
-          var cp = byId(postId); if(!cp) return;
-          var opRes = await generateComment(cp, res.text, cp.author, true);
-          if(opRes.skip || !opRes.text || !opRes.text.trim()) return;
-          var opUser = getUser(cp.author);
-          cloudAddComment(postId, {
-            name: cp.author, ini: opUser.i, bg: opUser.bg,
-            time: Date.now(), text: opRes.text,
-            isAI: opRes.isAI, isLocal: opRes.isLocal
-          });
-        }, 4000);
-      }
+if(Math.random()<0.4 && authorIsBot && currentPost.author!=='管理员'){
+  setTimeout(async function(){
+    var cp = byId(postId); if(!cp) return;
+    var opRes = await generateComment(cp, res.text, cp.author, true);
+    if(opRes.skip || !opRes.text || !opRes.text.trim()) return;
+    var opUser = getUser(cp.author);
+    cloudAddComment(postId, {
+      name: cp.author, ini: opUser.i, bg: opUser.bg,
+      time: Date.now(), text: opRes.text,
+      isAI: opRes.isAI, isLocal: opRes.isLocal
+    });
+  }, 4000);
+}
     }, delay);
   }
 }
@@ -1210,7 +1340,7 @@ function renderCmts(p){
     else if(c.isLocal) badge = '<span class="local-badge">本地</span>';
 
     h += '<div class="cmt">';
-    h += '<span class="mav" style="background:'+c.bg+'">'+esc(c.ini)+'</span>';
+    h += avatarHTML(c.name, c.ini, c.bg);
     h += '<div style="flex:1;min-width:0">';
     h += '<div><b data-uname="'+esc(c.name)+'">'+esc(c.name)+'</b>'+badge;
     h += '<small>'+formatTime(c.time)+'</small>';
@@ -1273,6 +1403,8 @@ $('cSend').onclick = async function(){
   input.value = '';
 
   if(p.author !== CU){
+  var authorIsBot = BOTS.some(function(b){ return b.n === p.author; });
+  if(authorIsBot){
     setTimeout(async function(){
       var currentPost = byId(cur); if(!currentPost) return;
       var res = await generateComment(currentPost, text, currentPost.author, true);
@@ -1285,6 +1417,7 @@ $('cSend').onclick = async function(){
       });
     }, 1500 + Math.random()*1500);
   }
+}
 
   triggerAutoComments(cur, false);
 };
@@ -1296,8 +1429,14 @@ $('cInput').addEventListener('keydown', function(e){
 /* ===================== 用户卡片 ===================== */
 function openUserCard(name){
   var u = getUser(name);
+  var cached = AVATAR_CACHE[name];
+if(cached){
+  $('ucAvatar').innerHTML = '<img src="'+cached+'">';
+  $('ucAvatar').style.background = u.bg;
+}else{
   $('ucAvatar').textContent = u.i;
   $('ucAvatar').style.background = u.bg;
+}
   $('ucName').textContent = u.n;
   $('ucBio').textContent = u.bio || '这个人很神秘';
 
@@ -1429,7 +1568,7 @@ function renderMsg(){
       var u = getUser(name);
       var isBack = isFriend(name);
       h += '<div class="friend" data-follower="'+esc(name)+'">';
-      h += '<span class="mav" style="background:'+u.bg+';width:36px;height:36px;font-size:.85rem">'+esc(u.i)+'</span>';
+      h += avatarHTML(name, u.i, u.bg, 36);
       h += '<div class="info"><div class="n" data-uname="'+esc(name)+'">'+esc(name)+'</div><div class="lm">'+esc(u.bio||'')+'</div></div>';
       if(isBack) h += '<span class="link" style="font-size:.72rem">互相关注</span>';
       else h += '<button class="btn" style="height:28px;font-size:.75rem" data-back="'+esc(name)+'">回关</button>';
@@ -1462,7 +1601,7 @@ function renderMsg(){
       var last = msgs.length ? msgs[msgs.length-1].text : '打个招呼吧～';
       var un = UNREAD[f.name] || 0;
       h += '<div class="friend" data-fname="'+esc(f.name)+'">';
-      h += '<span class="mav" style="background:'+f.bg+';width:36px;height:36px;font-size:.85rem">'+esc(f.ini)+'</span>';
+      h += avatarHTML(f.name, f.ini, f.bg, 36);
       h += '<div class="info"><div class="n" data-uname="'+esc(f.name)+'">'+esc(f.name)+'</div><div class="lm">'+esc(last)+'</div></div>';
       if(un>0) h += '<span class="badge">'+un+'</span>';
       h += '</div>';
@@ -1480,7 +1619,7 @@ function renderMsg(){
       var b = BOTS[i];
       if(b.n===CU || isFriend(b.n)) continue;
       h += '<div class="friend" data-addname="'+esc(b.n)+'">';
-      h += '<span class="mav" style="background:'+b.bg+';width:36px;height:36px;font-size:.85rem">'+esc(b.i)+'</span>';
+      h += avatarHTML(b.n, b.i, b.bg, 36);
       h += '<div class="info"><div class="n">'+esc(b.n)+'</div><div class="lm">'+esc(b.bio)+'</div></div>';
       h += '<button class="btn" style="height:28px;font-size:.75rem">+ 添加</button>';
       h += '</div>';
@@ -1658,6 +1797,7 @@ $('authGo').onclick = async function(){
     localStorage.setItem('forum_user_hash', passHash);   // 用于刷新后自动校验
     closeAuth();
     renderUserArea();
+    loadAllAvatars();
 
     if(firebaseReady){
       listenMyFollows();
@@ -1676,13 +1816,15 @@ function renderUserArea(){
   var area = $('userArea');
   if(CU){
     var u = getUser(CU);
-    area.innerHTML = '<span class="av" style="background:'+u.bg+'">'+esc(u.i)+'</span><span class="link" id="logoutBtn">退出</span>';
+    var cached = AVATAR_CACHE[CU];
+    var avInner = cached ? '<img src="'+cached+'">' : esc(u.i);
+    area.innerHTML = '<span class="av" id="myAvatar" style="background:'+u.bg+'" title="点击换头像">'+avInner+'</span><span class="link" id="logoutBtn">退出</span>';
+    $('myAvatar').onclick = openAvatarPicker;
     $('logoutBtn').onclick = function(){
       CU = '';
       CU_HASH = '';
       localStorage.removeItem('forum_user');
       localStorage.removeItem('forum_user_hash');
-      // 解绑监听
       if(_followersListenerRef){ _followersListenerRef.off(); _followersListenerRef = null; }
       if(_myFollowsListenerRef){ _myFollowsListenerRef.off(); _myFollowsListenerRef = null; }
       FOLLOWERS = [];
@@ -1925,6 +2067,7 @@ function boot(){
     updateUnreadDot();
     updateNoticeDot();
     startCloudListener();
+    loadAllAvatars();
     // ↓↓↓ 新增：校验本地登录态是否有效
     if(CU && CU_HASH && firebaseReady){
       db.ref('users/' + CU).once('value').then(function(snap){
