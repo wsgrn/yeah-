@@ -820,18 +820,36 @@ function cloudAddComment(postId, cmt){
   if(!p || !p._key || !firebaseReady) return Promise.reject();
   return db.ref('posts/' + p._key + '/cmts').push(cmt);
 }
+/* 点赞：先写 likedBy，再用事务改 likes 计数 */
 function cloudLikePost(postId){
   var p = byId(postId);
-  if(!p || !p._key || !firebaseReady) return Promise.reject();
-  return db.ref('posts/' + p._key + '/likes').transaction(function(c){
-    return (c || 0) + 1;
+  if(!p || !p._key || !firebaseReady || !CU) return Promise.reject();
+  var key = p._key;
+  // 1. 先检查是否已点过
+  return db.ref('posts/' + key + '/likedBy/' + CU).once('value').then(function(snap){
+    if(snap.val()) return;   // 已点过，直接返回
+    // 2. 写入 likedBy
+    return db.ref('posts/' + key + '/likedBy/' + CU).set(true).then(function(){
+      // 3. 计数 +1
+      return db.ref('posts/' + key + '/likes').transaction(function(c){
+        return (c || 0) + 1;
+      });
+    });
   });
 }
+
+/* 取消点赞 */
 function cloudUnlikePost(postId){
   var p = byId(postId);
-  if(!p || !p._key || !firebaseReady) return Promise.reject();
-  return db.ref('posts/' + p._key + '/likes').transaction(function(c){
-    return Math.max(0, (c || 0) - 1);
+  if(!p || !p._key || !firebaseReady || !CU) return Promise.reject();
+  var key = p._key;
+  return db.ref('posts/' + key + '/likedBy/' + CU).once('value').then(function(snap){
+    if(!snap.val()) return;   // 没点过，直接返回
+    return db.ref('posts/' + key + '/likedBy/' + CU).remove().then(function(){
+      return db.ref('posts/' + key + '/likes').transaction(function(c){
+        return Math.max(0, (c || 0) - 1);
+      });
+    });
   });
 }
 function cloudIncViews(postId){
@@ -859,17 +877,43 @@ function startCloudListener(){
       cloudPosts.push(p);
     });
 
-    // 合并默认帖子（只展示，不写库）
     var merged = cloudPosts.slice();
     defaultPosts.forEach(function(dp){
       if(!merged.some(function(p){ return p.id === dp.id; })) merged.push(dp);
     });
 
+    // ===== 关键：判断是"结构变化"还是"数值变化" =====
+    var oldIds = POSTS.map(function(p){ return p.id; }).sort().join(',');
+    var newIds = merged.map(function(p){ return p.id; }).sort().join(',');
+    var structureChanged = (oldIds !== newIds);
+
+    // 检查是否有帖子内容变化（标题/正文/分类/作者）
+    var contentChanged = false;
+    if(!structureChanged){
+      for(var i=0;i<merged.length;i++){
+        var np = merged[i];
+        var op = POSTS.find(function(x){ return x.id === np.id; });
+        if(!op){ contentChanged = true; break; }
+        if(op.title !== np.title || op.cat !== np.cat || op.author !== np.author ||
+           JSON.stringify(op.body) !== JSON.stringify(np.body) ||
+           JSON.stringify(op.images) !== JSON.stringify(np.images)){
+          contentChanged = true; break;
+        }
+      }
+    }
+
     POSTS = merged;
     dataReady = true;
-    applyFilterAndRender();
 
-    // 如果详情页开着，刷新详情
+    // 只有结构或内容变化才重绘列表
+    if(structureChanged || contentChanged){
+      applyFilterAndRender();
+    } else {
+      // 只更新点赞数、浏览量、评论数这些"轻量"数据
+      updatePostCounters();
+    }
+
+    // 详情页开着的话，刷新详情
     if(cur){
       var still = byId(cur);
       if(still) renderDetailContent(still);
@@ -884,10 +928,40 @@ function startCloudListener(){
   });
 }
 
+/* 只更新列表里的点赞数/浏览量/评论数，不重绘整个列表 */
+function updatePostCounters(){
+  var cards = document.querySelectorAll('.post[data-id]');
+  cards.forEach(function(card){
+    var id = +card.getAttribute('data-id');
+    var p = byId(id);
+    if(!p) return;
+
+    // 点赞数
+    var likeBtn = card.querySelector('[data-like]');
+    if(likeBtn){
+      var lc = likeBtn.querySelector('.lc');
+      if(lc) lc.textContent = p.likes || 0;
+      // 同步"我是否点过赞"的状态
+      var liked = !!(p.likedBy && p.likedBy[CU]);
+      likeBtn.classList.toggle('on', liked);
+    }
+
+    // 浏览量
+    var metaSpans = card.querySelectorAll('.meta > span');
+    metaSpans.forEach(function(sp){
+      var t = sp.textContent;
+      if(t.indexOf('👁') === 0){
+        sp.textContent = '👁 ' + (p.views || 0);
+      } else if(t.indexOf('💬') === 0){
+        sp.textContent = '💬 ' + cmtsToArray(p.cmts).length;
+      }
+    });
+  });
+}
 /* ===================== Markdown & 图片 ===================== */
 function parseMarkdown(text){
   var safe = esc(text);
-  safe = safe.replace(/\*\*(.+?)\*\*/g, '<b>\$1</b>');   // ✅ 修复：\$1 不加反斜杠
+    safe = safe.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
   safe = safe.replace(/\n/g, '<br>');
   return safe.replace(/@([^\s，。！？,.!?]+)/g, function(match, name){
     return '<span class="mention" data-mname="'+name+'">@'+name+'</span>';
@@ -904,6 +978,26 @@ function openImgPreview(src){
 }
 function closeImgPreview(){ $('imgPreview').classList.remove('on'); }
 
+function sharePost(id){
+  var p = byId(id); if(!p) return;
+  var url = location.origin + location.pathname + '#post-' + id;
+  var shareData = {
+    title: p.title,
+    text: p.title + ' — 微光论坛',
+    url: url
+  };
+  if(navigator.share){
+    navigator.share(shareData).catch(function(){});
+  }else if(navigator.clipboard){
+    navigator.clipboard.writeText(url).then(function(){
+      showToast('链接已复制，去分享吧');
+    }).catch(function(){
+      showToast('复制失败', true);
+    });
+  }else{
+    prompt('复制这个链接分享：', url);
+  }
+}
 function compressAndGetBase64(file, callback){
   var reader = new FileReader();
   reader.onload = function(e){
@@ -1043,7 +1137,8 @@ function loadMore(){
       h+='<span class="pname" data-uname="'+esc(p.author)+'">'+esc(p.author)+'</span>';
       h+='<span>'+formatTime(p.time)+'</span>';
       h+='<span>💬 '+cmtsArr.length+'</span><span>👁 '+(p.views||0)+'</span>';
-      h+='<button class="like '+((p.likedByMe)?'on':'')+'" data-like="'+p.id+'"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 000-7.8z"/></svg><span class="lc">'+(p.likes||0)+'</span></button>';
+            var likedByMe = !!(p.likedBy && p.likedBy[CU]);
+      h+='<button class="like '+(likedByMe?'on':'')+'" data-like="'+p.id+'"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 000-7.8z"/></svg><span class="lc">'+(p.likes||0)+'</span></button>';
       h+='<button class="like '+((isFav(p.id))?'on':'')+'" data-fav="'+p.id+'"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></button>';
       h+='</div></div>';
     }
@@ -1065,6 +1160,7 @@ window.addEventListener('scroll', function(){
 });
 
 $('list').onclick = function(e){
+  // 收藏
   if(e.target.closest('[data-fav]')){
     var pid = +e.target.closest('[data-fav]').getAttribute('data-fav');
     var now = toggleFav(pid);
@@ -1072,18 +1168,37 @@ $('list').onclick = function(e){
     showToast(now ? '已收藏' : '已取消收藏');
     return;
   }
+
+  // 点赞
   if(e.target.closest('[data-like]')){
     var b = e.target.closest('[data-like]');
     var p = byId(+b.getAttribute('data-like')); if(!p) return;
     if(!CU){ openAuth(); return; }
-    p.likedByMe = !p.likedByMe;
-    b.classList.toggle('on', p.likedByMe);
-    if(p.likedByMe) cloudLikePost(p.id); else cloudUnlikePost(p.id);
+
+    // 从云端状态判断当前是否已点赞
+    var liked = !!(p.likedBy && p.likedBy[CU]);
+
+    // 乐观更新 UI
+    b.classList.toggle('on', !liked);
+    var lc = b.querySelector('.lc');
+    if(lc) lc.textContent = Math.max(0, (p.likes || 0) + (liked ? -1 : 1));
+
+    // 写云端
+    var promise = liked ? cloudUnlikePost(p.id) : cloudLikePost(p.id);
+    promise.catch(function(){
+      // 失败回滚
+      b.classList.toggle('on', liked);
+      if(lc) lc.textContent = p.likes || 0;
+      showToast('操作失败，请重试', true);
+    });
     return;
   }
+
+  // 图片预览
   var img = e.target.closest('.post-img');
   if(img){ openImgPreview(img.getAttribute('data-img')); return; }
 
+  // 卡片点击
   var card = e.target.closest('.post');
   if(!card) return;
   if(e.target.closest('[data-edit]')){ openComposer(+e.target.closest('[data-edit]').getAttribute('data-edit')); return; }
@@ -1247,15 +1362,22 @@ function openPost(id){
   var p = byId(id); if(!p) return;
   _scrollY = window.scrollY;
   cur = id;
-  dLiked = !!p.likedByMe;
 
-  // 浏览量 +1（云端事务）
+  // 重置评论折叠状态
+  $('dCmts').removeAttribute('data-showall');
+
+  // 浏览量 +1
   cloudIncViews(id);
 
   renderDetailContent(p);
   $('cInput').value = '';
   $('detail').classList.add('on');
-  $('detail').scrollIntoView({behavior:'smooth', block:'start'});
+
+  // 只有详情在视口外才滚动，避免打断用户
+  var rect = $('detail').getBoundingClientRect();
+  if(rect.top < 0 || rect.top > window.innerHeight * 0.5){
+    $('detail').scrollIntoView({behavior:'smooth', block:'start'});
+  }
 }
 
 function renderDetailContent(p){
@@ -1265,7 +1387,8 @@ function renderDetailContent(p){
   $('dMeta').textContent = p.tag+' · '+formatTime(p.time)+' · '+p.author;
   $('dViews').textContent = p.views || 0;
   $('dLikeCount').textContent = p.likes || 0;
-  $('dLike').classList.toggle('on', dLiked);
+  var likedByMe = !!(p.likedBy && p.likedBy[CU]);
+$('dLike').classList.toggle('on', likedByMe);
   renderFriendBar(p);
 
   var b='';
@@ -1288,13 +1411,15 @@ function renderDetailContent(p){
   renderCmts(p);
 
   var dact = document.querySelector('.dact');
-  var old = dact.querySelector('[data-dfav]');
-  if(old) old.remove();
-  var btn = document.createElement('button');
-  btn.className = 'like' + (isFav(cur) ? ' on' : '');
-  btn.setAttribute('data-dfav', cur);
-  btn.innerHTML = '⭐<span style="margin-left:4px">'+(isFav(cur)?'已收藏':'收藏')+'</span>';
-  btn.onclick = function(){
+  // 清掉旧的收藏/分享按钮
+  dact.querySelectorAll('[data-dfav],[data-dshare]').forEach(function(x){ x.remove(); });
+
+  // 收藏按钮
+  var favBtn = document.createElement('button');
+  favBtn.className = 'like' + (isFav(cur) ? ' on' : '');
+  favBtn.setAttribute('data-dfav', cur);
+  favBtn.innerHTML = '⭐<span style="margin-left:4px">'+(isFav(cur)?'已收藏':'收藏')+'</span>';
+  favBtn.onclick = function(){
     var now = toggleFav(cur);
     this.classList.toggle('on', now);
     this.querySelector('span').textContent = now ? '已收藏' : '收藏';
@@ -1302,7 +1427,15 @@ function renderDetailContent(p){
     if(listBtn) listBtn.classList.toggle('on', now);
     showToast(now ? '已收藏' : '已取消收藏');
   };
-    dact.appendChild(btn);
+  dact.appendChild(favBtn);
+
+  // 分享按钮
+  var shareBtn = document.createElement('button');
+  shareBtn.className = 'like';
+  shareBtn.setAttribute('data-dshare', cur);
+  shareBtn.innerHTML = '🔗<span style="margin-left:4px">分享</span>';
+  shareBtn.onclick = function(){ sharePost(cur); };
+  dact.appendChild(shareBtn);
 }
 
 function renderFriendBar(p){
@@ -1316,10 +1449,12 @@ function renderFriendBar(p){
     $('addFromPost').onclick = function(){
       if(!CU){ openAuth(); return; }
       if(isFriend(p.author)) return;
-      FRIENDS.push({name:p.author, ini:p.ini, bg:p.bg, bio:getUser(p.author).bio});
-      savePersonal();
-      renderFriendBar(p);
-      showToast('已添加 '+p.author+' 为好友');
+      cloudAddFriend(p.author).then(function(){
+        showToast('已关注 '+p.author);
+        renderFriendBar(p);
+      }).catch(function(){
+        showToast('关注失败，检查网络', true);
+      });
     };
   }
 }
@@ -1327,12 +1462,24 @@ function renderCmts(p){
   var box = $('dCmts');
   var cmtsArr = cmtsToArray(p.cmts);
   $('dCmtCount').textContent = cmtsArr.length;
-  if(!cmtsArr.length){ box.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:8px 0">还没有评论，来抢沙发～</div>'; return; }
+  if(!cmtsArr.length){
+    box.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:8px 0">还没有评论，来抢沙发～</div>';
+    return;
+  }
 
   var sortedCmts = cmtsArr.slice().sort(function(a,b){ return (a.time||0)-(b.time||0); });
+  var showAll = box.getAttribute('data-showall') === '1';
+  var display = showAll ? sortedCmts : sortedCmts.slice(-10);   // 默认显示最新 10 条
+
   var h = '';
-  for(var i=0;i<sortedCmts.length;i++){
-    var c = sortedCmts[i];
+  if(!showAll && sortedCmts.length > 10){
+    h += '<div style="text-align:center;padding:6px 0 10px">' +
+         '<button class="btn ghost" style="height:28px;font-size:.75rem" id="showAllCmts">' +
+         '查看全部 ' + sortedCmts.length + ' 条评论</button></div>';
+  }
+
+  for(var i=0;i<display.length;i++){
+    var c = display[i];
     var isOP = c.name === p.author;
     var badge = '';
     if(isOP) badge = '<span class="op-badge">楼主</span>';
@@ -1364,6 +1511,12 @@ function renderCmts(p){
       $('cInput').focus();
     };
   });
+
+  var sa = $('showAllCmts');
+  if(sa) sa.onclick = function(){
+    box.setAttribute('data-showall','1');
+    renderCmts(p);
+  };
 }
 
 $('dClose').onclick = function(){
@@ -1376,12 +1529,33 @@ $('dLike').onclick = function(){
   if(!cur) return;
   if(!CU){ openAuth(); return; }
   var p = byId(cur); if(!p) return;
-  p.likedByMe = !p.likedByMe;
-  dLiked = p.likedByMe;
-  this.classList.toggle('on', dLiked);
-  if(dLiked) cloudLikePost(cur); else cloudUnlikePost(cur);
+
+  var liked = !!(p.likedBy && p.likedBy[CU]);
+  var newLiked = !liked;
+
+  // 乐观更新
+  this.classList.toggle('on', newLiked);
+  $('dLikeCount').textContent = Math.max(0, (p.likes || 0) + (newLiked ? 1 : -1));
+
   var listBtn = document.querySelector('.post[data-id="'+cur+'"] [data-like]');
-  if(listBtn) listBtn.classList.toggle('on', dLiked);
+  if(listBtn){
+    listBtn.classList.toggle('on', newLiked);
+    var lc = listBtn.querySelector('.lc');
+    if(lc) lc.textContent = Math.max(0, (p.likes || 0) + (newLiked ? 1 : -1));
+  }
+
+  var promise = newLiked ? cloudLikePost(cur) : cloudUnlikePost(cur);
+  promise.catch(function(){
+    // 回滚
+    $('dLike').classList.toggle('on', liked);
+    $('dLikeCount').textContent = p.likes || 0;
+    if(listBtn){
+      listBtn.classList.toggle('on', liked);
+      var lc2 = listBtn.querySelector('.lc');
+      if(lc2) lc2.textContent = p.likes || 0;
+    }
+    showToast('操作失败，请重试', true);
+  });
 };
 
 $('cSend').onclick = async function(){
@@ -1442,7 +1616,21 @@ if(cached){
 
   var posts = POSTS.filter(function(p){ return p.author===name; });
   var totalLikes = posts.reduce(function(s,p){ return s+(p.likes||0); }, 0);
-  $('ucStats').innerHTML = '<span><b>'+posts.length+'</b>帖子</span><span><b>'+totalLikes+'</b>获赞</span>';
+
+  // 先渲染基础数据
+  $('ucStats').innerHTML = '<span><b>'+posts.length+'</b>帖子</span>' +
+    '<span><b>'+totalLikes+'</b>获赞</span>' +
+    '<span><b>—</b>关注</span>';
+
+  // 异步拉关注数
+  if(firebaseReady){
+    db.ref('follows/' + name).once('value').then(function(snap){
+      var followingCount = snap.numChildren();
+      $('ucStats').innerHTML = '<span><b>'+posts.length+'</b>帖子</span>' +
+        '<span><b>'+totalLikes+'</b>获赞</span>' +
+        '<span><b>'+followingCount+'</b>关注</span>';
+    }).catch(function(){});
+  }
 
   var actions = $('ucActions');
   if(name === CU){
@@ -1533,7 +1721,7 @@ $('msgClose').onclick = closeMsg;
 
 function renderMsg(){
   var body = $('msgBody');
-  if(curChat){
+    if(curChat){
     $('mtabs').style.display = 'none';
     $('addBar').style.display = 'none';
     $('chatInput').style.display = 'flex';
@@ -1542,7 +1730,12 @@ function renderMsg(){
     var h = '<div class="chat">';
     for(var i=0;i<msgs.length;i++){
       var m = msgs[i];
-      h += '<div class="row '+(m.from===CU?'me':'them')+'"><div class="bubble">'+esc(m.text)+'</div></div>';
+      var readMark = '';
+      if(m.from === CU && m._read){
+        readMark = '<span style="font-size:.6rem;opacity:.7;margin-left:6px">已读</span>';
+      }
+      h += '<div class="row '+(m.from===CU?'me':'them')+'">' +
+           '<div class="bubble">'+esc(m.text)+readMark+'</div></div>';
     }
     h += '</div>';
     body.innerHTML = h;
@@ -1839,6 +2032,21 @@ function renderUserArea(){
 }
 
 /* ===================== 发帖 / 编辑 ===================== */
+function saveDraft(){
+  if(editingPostId) return;   // 编辑模式不存草稿
+  var title = $('compTitle').value;
+  var body = $('compBody').value;
+  if(!title && !body){
+    localStorage.removeItem('forum_draft');
+    return;
+  }
+  localStorage.setItem('forum_draft', JSON.stringify({
+    title: title,
+    body: body,
+    cat: $('compCat').value,
+    time: Date.now()
+  }));
+}
 function openComposer(editId){
   if(!CU){ openAuth(); return; }
   editingPostId = editId || null;
@@ -1851,16 +2059,23 @@ function openComposer(editId){
       $('compBody').value = (p.body||[]).join('\n');
     }
   }else{
-    $('compTitle').value = '';
-    $('compBody').value = '';
-    $('compCat').value = 'tech';
+    // 恢复草稿
+    var draft = null;
+    try{ draft = JSON.parse(localStorage.getItem('forum_draft') || 'null'); }catch(_){}
+    if(draft && (draft.title || draft.body) && Date.now() - draft.time < 86400000){
+      $('compTitle').value = draft.title || '';
+      $('compBody').value = draft.body || '';
+      $('compCat').value = draft.cat || 'tech';
+      showToast('已恢复上次草稿');
+    }else{
+      $('compTitle').value = '';
+      $('compBody').value = '';
+      $('compCat').value = 'tech';
+    }
   }
   $('compImgPreview').innerHTML = '';
   $('composer').classList.add('on');
 }
-function closeComposer(){ $('composer').classList.remove('on'); editingPostId = null; }
-$('compCancel').onclick = closeComposer;
-
 var pendingImages = [];
 $('compImg').onchange = function(e){
   var file = e.target.files[0];
@@ -2099,7 +2314,29 @@ function boot(){
         if(!CU) showToast('👋 点右上角「登录」开始发帖');
       }, 2000);
     }
-  } catch (e) {
+      // 支持 #post-xxx 直达
+    function handleHash(){
+      var m = location.hash.match(/^#post-(\d+)$/);
+      if(m){
+        var pid = +m[1];
+        var start = Date.now();
+        var tryOpen = function(){
+          if(dataReady && byId(pid)){
+            openPost(pid);
+            history.replaceState(null, '', location.pathname);
+          }else if(Date.now() - start < 10000){
+            setTimeout(tryOpen, 300);
+          }else{
+            showToast('帖子不存在或已删除', true);
+            history.replaceState(null, '', location.pathname);
+          }
+        };
+        tryOpen();
+      }
+    }
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+} catch (e) {
     console.error('[Boot] 初始化失败:', e);
     try {
       POSTS = defaultPosts.slice();
